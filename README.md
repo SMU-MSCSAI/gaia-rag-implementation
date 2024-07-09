@@ -62,21 +62,7 @@ poetry run python -m unittest discover -s gaia_framework/tests
 
 ## Project Structure
 
-gaia-rag-implementation/
-│
-├── gaia_framework/
-│   ├── agents/
-│   │   ├── __init__.py
-│   │   └── vector_db_agent.py
-│   ├── utils/
-│   │   └── __init__.py
-│   ├── tests/
-│   │   ├── __init__.py
-│   │   └── test_vector_db_agent.py
-│   └── main.py
-│
-├── pyproject.toml
-└── poetry.lock
+![alt text](images/image.png)
 
 - `gaia_framework/agents/`: Contains the implementation of different agents.
 - `gaia_framework/utils/`: Utility functions and classes.
