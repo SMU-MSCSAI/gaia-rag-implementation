@@ -2,19 +2,21 @@
 name = "gaia-rag-implementation"
 version = "0.1.0"
 description = "GAIA: Generative Agent Integration Architecture for Autonomous and Interconnected Systems"
-authors = ["ttew@smu.edu", "coyle@lyle.smu.edu"]
+authors = ["Tew Tango <ttew@smu.edu>", "drC <coyle@lyle.smu.edu>"]
 license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.10"
 transformers = "^4.9.1"
 torch = "^1.9.0"
 faiss-cpu = "^1.7.1"
-numpy = "^1.21.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

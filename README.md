@@ -57,7 +57,16 @@ poetry run gaia-framework
 To run tests, use the following command:
 
 ```bash
-poetry run python -m unittest discover -s gaia_framework/tests
+cd gaia_framework
+poetry run python -m unittest discover -s /tests
+```
+To add a package for development
+```bash
+poetry add --group dev "package-name"
+```
+Then run 
+```bash 
+poetry install
 ```
 
 ## Project Structure
