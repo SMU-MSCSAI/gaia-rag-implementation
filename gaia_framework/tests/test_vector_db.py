@@ -12,15 +12,15 @@
 #             logger.info("Running VectorDatabase test.")
 #             dimension = 384
 #             vector_db = VectorDatabase(dimension)
-            
+
 #             # Generate a random embedding
 #             embedding = np.random.rand(1, dimension).astype(np.float32)
 #             vector_db.add_embeddings(embedding)
-            
+
 #             # Generate a random query embedding
 #             query_embedding = np.random.rand(1, dimension).astype(np.float32)
 #             distances, indices = vector_db.search(query_embedding)
-            
+
 #             # Check the results
 #             self.assertEqual(len(distances), 1)
 #             self.assertEqual(len(indices), 1)
@@ -31,3 +31,5 @@
 
 # if __name__ == "__main__":
 #     unittest.main()
+    #   print("-----------------------------------")
+    #   print("-----------------------------------\n")
