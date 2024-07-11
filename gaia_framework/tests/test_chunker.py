@@ -10,24 +10,40 @@ class TestTextChunker(unittest.TestCase):
         try:
             logging.info("Running TextChunker test.")
             text = "This is a simple text that needs to be chunked into smaller pieces."
-            chunker = TextChunker(chunk_size=5, chunk_overlap=1)
-            chunks = chunker.chunk_text(text)
-            # Check if the number of chunks is correct
-            logger.info(f"Testing the number of chunks: {len(chunks)} with an overlap of 1")
-            self.assertEqual(len(chunks), 4)
-            logger.info(f"TextChunker with overlap of 1: {chunks} is passed")
 
-            chunker = TextChunker(chunk_size=5, chunk_overlap=2)
-            two_chunks = chunker.chunk_text(text)
-            # Check if the number of chunks is correct
-            logger.info(f"Testing the number of chunks: {len(chunks)} with an overlap of 2")
-            self.assertEqual(len(two_chunks), 5)
-            logger.info(f"TextChunker with overlap of 2: {chunks} is passed")
-            # Check if the first chunk contains the expected text
-            self.assertIn("This is a simple text", chunks[0])
+            # Test with chunk_size=20 and chunk_overlap=5
+            chunker = TextChunker(chunk_size=20, chunk_overlap=5, separator=" ")
+            chunks = chunker.chunk_text(text)
+            logger.info(f"Testing the number of chunks: {len(chunks)} with an overlap of 5")
+            expected_chunks = [
+                "This is a simple",
+                "e text that needs",
+                "ds to be chunked",
+                "d into smaller",
+                "pieces."
+            ]
+            self.assertEqual(chunks, expected_chunks)
+            logger.info(f"TextChunker with overlap of 5: {chunks} is passed")
+
+            # Test with chunk_size=20 and chunk_overlap=10
+            chunker = TextChunker(chunk_size=20, chunk_overlap=10, separator=" ")
+            chunks = chunker.chunk_text(text)
+            logger.info(f"Testing the number of chunks with an overlap of 10")
+           
+            self.assertEqual(len(chunks), 7)
+            logger.info(f"TextChunker with overlap of 10: {chunks} is passed")
+
+            # Test with chunk_size larger than text length
+            chunker = TextChunker(chunk_size=100, chunk_overlap=10, separator=" ")
+            chunks = chunker.chunk_text(text)
+            logger.info(f"Testing the number of chunks: {len(chunks)} with chunk_size larger than text length")
+            expected_chunks = [text]
+            self.assertEqual(chunks, expected_chunks)
+            logger.info(f"TextChunker with chunk_size larger than text length: {chunks} is passed")
+
             print("\n-----------------------------------")
             logger.info("TextChunker test passed.")
-            print("Finished Sample Test")
+            print("Finished TextChunker Test")
             print("-----------------------------------\n")
         except Exception as e:
             print("\n-----------------------------------")
