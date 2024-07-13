@@ -15,6 +15,17 @@ This repository is for educational purposes to create GAIA. The GAIA framework l
 
 The Generative Agent Integration Architecture (GAIA) is a framework designed to solve user problems using generative AI. This implementation focuses on the Retrieval-Augmented Generation (RAG) component of GAIA. The framework consists of autonomous agents that perform various tasks such as data collection, embedding generation, vector database creation, and retrieval-based text generation.
 
+### Overall RAG dataflow
+1. Chunking the Source Data: The source documents are divided into smaller, manageable chunks. This is crucial for efficient processing and retrieval.
+
+2. Embedding the Chunks: Each chunk of text is then converted into embeddings. These embeddings are vector representations of the text, which can be used for similarity searches and other downstream tasks.
+
+3. Retrieving Relevant Chunks: When a query is made, it is also embedded. The query embedding is then used to retrieve the most relevant chunks from the embedded chunks of the source data.
+
+4. Generating the Final Output: The retrieved chunks are used to generate the final response, often by passing them through a generative model like GPT.
+
+
+
 ## Dependencies
 
 The project uses the following dependencies:
