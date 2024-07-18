@@ -20,14 +20,14 @@
 #         # Create the log directory if it doesn't exist
 #         os.makedirs(os.path.dirname(cls.log_file), exist_ok=True)
     
-#     def setUp(self):
-#         # Reset the log file for each test
-#         reset_log_file(self.log_file)
+#     # def setUp(self):
+#     #     # Reset the log file for each test
+#     #     reset_log_file(self.log_file)
 
-#     def tearDown(self):
-#         # Clean up log file after tests
-#         if os.path.exists(self.log_file):
-#             os.remove(self.log_file)
+#     # def tearDown(self):
+#     #     # Clean up log file after tests
+#     #     if os.path.exists(self.log_file):
+#     #         os.remove(self.log_file)
 
 #     def test_chunk_text(self):
 #         """
@@ -61,7 +61,8 @@
 #             # Verify the log file content after chunking
 #             with open(self.log_file, "r") as f:
 #                 log_content = f.read()
-#                 self.assertIn("Step: After Chunking", log_content)
+#                 self.assertIn('"step": "Input Text"', log_content)
+#                 self.assertIn('"step": "After Chunking"', log_content)
 #                 for chunk in expected_chunks:
 #                     self.assertIn(chunk, log_content)
 
@@ -85,7 +86,7 @@
 #             # Verify the log file content after chunking
 #             with open(self.log_file, "r") as f:
 #                 log_content = f.read()
-#                 self.assertIn("Step: After Chunking", log_content)
+#                 self.assertIn('"step": "After Chunking"', log_content)
 #                 for chunk in expected_chunks:
 #                     self.assertIn(chunk, log_content)
 
@@ -104,7 +105,7 @@
 #             # Verify the log file content after final state
 #             with open(self.log_file, "r") as f:
 #                 log_content = f.read()
-#                 self.assertIn("Step: Final State after tests", log_content)
+#                 self.assertIn('"step": "Final State after tests"', log_content)
 #                 self.assertIn(text, log_content)
 
 #             print("\n-----------------------------------")
@@ -116,31 +117,31 @@
 #             logger.error(f"Error in TextChunker test: {e}")
 #             self.fail(f"TextChunker test failed: {e}")
 
-    # def test_reset_log_file(self):
-    #     """
-    #     Test the reset_log_file function.
-    #     """
-    #     try:
-    #         logging.info("Running reset_log_file test.")
+#     # def test_reset_log_file(self):
+#     #     """
+#     #     Test the reset_log_file function.
+#     #     """
+#     #     try:
+#     #         logging.info("Running reset_log_file test.")
 
-    #         # Write some initial content to the log file
-    #         with open(self.log_file, "a") as f:
-    #             f.write("Initial content\n")
+#     #         # Write some initial content to the log file
+#     #         with open(self.log_file, "a") as f:
+#     #             f.write("Initial content\n")
 
-    #         # Reset the log file
-    #         reset_log_file(self.log_file)
+#     #         # Reset the log file
+#     #         reset_log_file(self.log_file)
 
-    #         # Verify the log file content
-    #         with open(self.log_file, "r") as f:
-    #             log_content = f.read()
-    #             self.assertNotIn("Initial content", log_content)
-    #             self.assertIn("Data Processing Log", log_content)
+#     #         # Verify the log file content
+#     #         with open(self.log_file, "r") as f:
+#     #             log_content = f.read()
+#     #             self.assertNotIn("Initial content", log_content)
+#     #             self.assertIn("Data Processing Log", log_content)
 
-    #         logger.info("reset_log_file test passed.")
-    #     except Exception as e:
-    #         print("\n-----------------------------------")
-    #         logger.error(f"Error in reset_log_file test: {e}")
-    #         self.fail(f"reset_log_file test failed: {e}")
+#     #         logger.info("reset_log_file test passed.")
+#     #     except Exception as e:
+#     #         print("\n-----------------------------------")
+#     #         logger.error(f"Error in reset_log_file test: {e}")
+#     #         self.fail(f"reset_log_file test failed: {e}")
 
 # if __name__ == "__main__":
 #     unittest.main()

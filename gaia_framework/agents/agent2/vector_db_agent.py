@@ -1,18 +1,27 @@
+import logging
 import os
 import faiss
 import numpy as np
 
+from gaia_framework.utils.data_object import DataObject
+from gaia_framework.utils.logger_util import log_dataobject_step
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 class VectorDatabase:
-    def __init__(self, dimension, db_type='faiss'):
+    def __init__(self, dimension, db_type='faiss', index_type='FlatL2'):
         """
         Initialize the vector database.
 
         Args:
             dimension (int): The dimension of the embeddings.
             db_type (str): The type of vector database. Default is 'faiss'.
+            index_type (str): The type of FAISS index. Default is 'FlatL2'.
         """
         self.dimension = dimension
         self.db_type = db_type
+        self.index_type = index_type
         self.index = self._create_index()
         self.data = []
 
@@ -24,7 +33,15 @@ class VectorDatabase:
             faiss.Index: The FAISS index if db_type is 'faiss'.
         """
         if self.db_type == 'faiss':
-            return faiss.IndexFlatL2(self.dimension)
+            if self.index_type == 'FlatL2':
+                return faiss.IndexFlatL2(self.dimension)
+            elif self.index_type == 'IVFFlat':
+                quantizer = faiss.IndexFlatL2(self.dimension)
+                index = faiss.IndexIVFFlat(quantizer, self.dimension, 100)
+                index.nprobe = 10  # set the number of probes for IVFFlat
+                return index
+            else:
+                raise ValueError(f"Unsupported FAISS index type: {self.index_type}")
         elif self.db_type == 'other_db':
             # Placeholder for another vector database initialization
             # Implement other vector database initialization here
@@ -32,70 +49,145 @@ class VectorDatabase:
         else:
             raise ValueError(f"Unsupported database type: {self.db_type}")
 
-    def add_embeddings(self, embeddings):
+    def add_embeddings(self, data_object: DataObject, embeddings, log_file: str = "data_processing_log.txt"):
         """
         Add embeddings to the vector database.
 
         Args:
+            data_object (DataObject): The data object containing the text to generate embeddings for.
             embeddings (list or np.ndarray): The embeddings to add.
+            log_file (str): The file to log processing steps.
         """
-        if isinstance(embeddings, list):
-            embeddings = np.array(embeddings).astype(np.float32)
-        self.index.add(embeddings)
-        self.data.extend(embeddings)
+        try:
+            log_dataobject_step(data_object, "Input Text to embedding indexing", log_file)
+            logger.info("Adding embeddings to the vector database.")
+            if isinstance(embeddings, list):
+                embeddings = np.array(embeddings).astype(np.float32)
+            if embeddings.ndim == 1:
+                embeddings = np.expand_dims(embeddings, axis=0)
+            if embeddings.shape[1] != self.dimension:
+                raise ValueError("Embedding dimension does not match the index dimension.")
+            self.index.add(embeddings)
+            self.data.extend(embeddings.tolist())
+            log_dataobject_step(data_object, "Embeddings Added and Indexed", log_file)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error adding embeddings: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise
 
-    def search(self, query_embedding, k=5):
+    def search(self, data_object: DataObject, query_embedding, k=5, log_file: str = "data_processing_log.txt"):
         """
         Search the vector database for the top k most similar embeddings.
 
         Args:
+            data_object (DataObject): The data object containing the text to generate embeddings for.
             query_embedding (np.ndarray): The query embedding to search for.
             k (int): The number of top similar embeddings to return. Default is 5.
 
         Returns:
             tuple: Distances and indices of the top k similar embeddings.
         """
-        if isinstance(query_embedding, list):
-            query_embedding = np.array(query_embedding).astype(np.float32)
-        distances, indices = self.index.search(query_embedding, k)
-        return distances, indices
+        try:
+            log_dataobject_step(data_object, "Input Text to embedding search", log_file)
+            logger.info("Searching embeddings in the vector database.")
+            if isinstance(query_embedding, list):
+                query_embedding = np.array(query_embedding).astype(np.float32)
+            if query_embedding.ndim == 1:
+                query_embedding = np.expand_dims(query_embedding, axis=0)
+            if query_embedding.shape[1] != self.dimension:
+                raise ValueError("Query embedding dimension does not match the index dimension.")
+            logger.info(f"Query embedding shape: {query_embedding.shape}")
+            distances, indices = self.index.search(query_embedding, k)
+            data_object.queries = query_embedding.tolist()
+            log_dataobject_step(data_object, "Embeddings Searched", log_file)
+            return distances, indices
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error searching embeddings: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise
 
-    def save_local(self, path):
+    def save_local(self, path, data_object: DataObject, log_file: str = "data_processing_log.txt"):
         """
         Save the vector database to a local directory.
 
         Args:
             path (str): The path to the directory where the database will be saved.
+            data_object (DataObject): The data object containing the text to generate embeddings for.
+            log_file (str): The file to log processing steps.
         """
-        if not os.path.exists(path):
-            os.makedirs(path)
-        faiss.write_index(self.index, os.path.join(path, 'index.faiss'))
-        np.save(os.path.join(path, 'data.npy'), np.array(self.data))
+        try:
+            log_dataobject_step(data_object, "Input Text to save local", log_file)
+            logger.info(f"Saving embeddings locally to {path}")
+            os.makedirs(path, exist_ok=True)
+            faiss.write_index(self.index, os.path.join(path, 'index.faiss'))
+            np.save(os.path.join(path, 'data.npy'), np.array(self.data))
+            logger.info(f"Embeddings saved locally to {path}")
+            log_dataobject_step(data_object, "Embeddings Saved Locally", log_file)
+        except (OSError, ValueError) as e:
+            logger.error(f"Error saving embeddings locally: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise
 
-    def load_local(self, path):
+    def load_local(self, path, data_object: DataObject, log_file: str = "data_processing_log.txt"):
         """
         Load the vector database from a local directory.
 
         Args:
             path (str): The path to the directory where the database is saved.
+            data_object (DataObject): The data object containing the text to generate embeddings for.
+            log_file (str): The file to log processing steps.
         """
-        self.index = faiss.read_index(os.path.join(path, 'index.faiss'))
-        self.data = np.load(os.path.join(path, 'data.npy')).tolist()
+        try:
+            log_dataobject_step(data_object, "Input Text to load local", log_file)
+            logger.info(f"Loading embeddings locally from {path}")
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"Directory not found: {path}")
+            self.index = faiss.read_index(os.path.join(path, 'index.faiss'))
+            self.data = np.load(os.path.join(path, 'data.npy')).tolist()
+            logger.info(f"Embeddings loaded from {path}")
+            data_object.vectorDB = self.db_type
+            log_dataobject_step(data_object, "Embeddings Loaded Locally", log_file)
+        except (FileNotFoundError, ValueError) as e:
+            logger.error(f"Error loading embeddings locally: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise
 
-    def get_similarity_indices(self, query_embedding, k=5):
+    def get_similarity_indices(self, query_embedding, data_object: DataObject, k=5, log_file: str = "data_processing_log.txt"):
         """
         Get the top k similar embeddings' indices and distances.
 
         Args:
             query_embedding (np.ndarray): The query embedding to search for.
             k (int): The number of top similar embeddings to return.
+            data_object (DataObject): The data object containing the text to generate embeddings for.
+            log_file (str): The file to log processing steps.
 
         Returns:
             dict: A dictionary containing the distances and indices of the top k similar embeddings.
         """
-        distances, indices = self.search(query_embedding, k)
-        results = {
-            "distances": distances.tolist(),
-            "indices": indices.tolist()
-        }
-        return results
+        try:
+            log_dataobject_step(data_object, "Input Text to get similarity indices", log_file)
+            logger.info("Getting similarity indices.")
+            distances, indices = self.search(data_object, query_embedding, k)
+            similarity_results = {
+                "distances": distances.tolist(),
+                "indices": indices.tolist()
+            }
+            logger.info(f"Similarity indices: {similarity_results}")
+            data_object.vectorDB = self.db_type
+            log_dataobject_step(data_object, "Similarity Indices Retrieved", log_file)
+            return similarity_results
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error getting similarity indices: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise

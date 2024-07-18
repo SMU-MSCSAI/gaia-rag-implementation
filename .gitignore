@@ -56,6 +56,11 @@ cover/
 *.mo
 *.pot
 
+# DB data
+*.npy
+*.npz
+*.faiss
+
 # Django stuff:
 *.log
 local_settings.py
