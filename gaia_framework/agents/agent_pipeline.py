@@ -1,11 +1,12 @@
 import logging
 import os
 import numpy as np
+from  gaia_framework.agents.agent3.llm_runner import LLMRunner
 from gaia_framework.agents.agent2.vector_db_agent import VectorDatabase
 from gaia_framework.utils.chunker import TextChunker
 from gaia_framework.utils.data_object import DataObject
 from gaia_framework.utils.embedding_processor import EmbeddingProcessor
-from gaia_framework.utils.logger_util import reset_log_file
+from gaia_framework.utils.logger_util import log_dataobject_step, reset_log_file
 
 
 logging.basicConfig(level=logging.INFO)
@@ -21,13 +22,23 @@ embedding_dimensions = {
     # Add more models and their dimensions as needed
 }
 
+supported_local_models = [
+    "llamma2",
+    "openchat",
+    "gpt3",
+    "llama3"
+]
+
 class Pipeline:
     def __init__(self, embedding_model_name, 
                 data_object: DataObject, db_type='faiss', 
                 index_type='FlatL2', 
                 chunk_size=512, 
                 chunk_overlap=50,
-                log_file="data_processing_log.txt"):
+                log_file="data_processing_log.txt",
+                model_name= "lamma2",
+                local_endpoint=None,
+                api_key=None):
         """
             Usage of the Pipeline class.
             1. Get the data as text to be used as the context. 
@@ -57,16 +68,23 @@ class Pipeline:
         self.data_object = data_object
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.supported_local_models = supported_local_models
+        self.openai_key = api_key
+        self.local_endpoint = local_endpoint
         
         self.chunker = TextChunker(self.chunk_size, self.chunk_overlap, separator=",")
         self.embedder = EmbeddingProcessor(self.embedding_model_name)
         # instantiate the class, and create the index (data structure sufficient to store the embeddings)
         self.vector_db = VectorDatabase(self.dimension, self.db_type, self.index_type) 
+        # load the llm
+        self.llm = LLMRunner(api_key=self.openai_key, local_endpoint=self.local_endpoint,
+                            model=model_name,supported_local_models= self.supported_local_models,
+                            data_object=self.data_object, log_file=self.log_file)
         
         # restart the log file after each run
         reset_log_file(self.log_file)
+        
         # clean up the logging file after each run
-        @classmethod
         def tearDown(self):
             # Clean up log file after tests
             if os.path.exists(self.log_file):
@@ -138,6 +156,57 @@ class Pipeline:
         similar_results = self.vector_db.get_similarity_indices(query_embedding, self.data_object, k, self.log_file)
         return similar_results
     
+    def retrieveRagText(self, indices):
+        """
+        Get the ragText from the data object using the indices from the similar results.
+
+        Args:
+            indices (list): The list of indices to retrieve the ragText from.
+
+        Returns:
+            list: A list of ragText retrieved from the data object.
+        """
+        log_dataobject_step(self.data_object, "Input Text to RagText Retrieval", self.log_file)
+        logger.info("Retrieving RagText.")
+        ragText = " ".join([data_object.chunks[idx].text for idx in indices])
+        self.data_object.ragText = ragText
+        log_dataobject_step(self.data_object, "After RagText Retrieved", self.log_file)
+        logger.info(f"RagText Retrieved: {ragText}")
+        return ragText
+    
+    def load_local_ollama(self):
+        """
+        Load the supported local models.
+        """
+        local_models = self.llm.get_supported_local_models()
+        model_names = [model[0].split(":")[0] for model in local_models]  # Adjusted splitting to match your format
+        # Check if the local models are among the supported local models
+        valid_models = None
+        for name in model_names:
+            if name in self.supported_local_models:
+                print(name)
+                valid_models = name
+        if valid_models:
+            logger.info(f"Valid local models loaded successfully: {valid_models}")
+        else:
+            logger.warning("No valid local models found.")
+        
+        return valid_models
+    
+    def run_llm(self, context, query):
+        """
+        Run the language model with the context and query.
+
+        Args:
+            context (str): The context to run the language model with.
+            query (str): The query to run the language model with.
+
+        Returns:
+            str: The response from the language model.
+        """
+        response = self.llm.run_query(context, query)
+        return response
+    
 if __name__ == "__main__":
     data = "This is a test sentence about domestic animals, Here I come with another test sentence about the cats."
     data_object = DataObject(
@@ -162,8 +231,9 @@ if __name__ == "__main__":
                         index_type='FlatL2', 
                         chunk_size=512,
                         chunk_overlap=50,
-                        log_file=log_file)
-    # 1. Chunk the text
+                        log_file=log_file,
+                        model_name="llama3")
+    #1. Chunk the text
     chunks, data_object = pipeline.process_data_chunk()
     
     # 2. If the db is already saved, load it, otherwise add the embeddings and save it
@@ -188,7 +258,15 @@ if __name__ == "__main__":
 
     # 5. Get the ragText from the data object using the indices from the similar results
     # Iterate over the indices to get the text out of the indexed chunks
-    ragText = " ".join([data_object.chunks[idx].text for idx in indices])
-    print(f"RagText: {ragText}")
+    ragText = pipeline.retrieveRagText(indices)
+    
+    # 6. Run the language model with the context and query
+    local_models = pipeline.load_local_ollama()
+    
+    # 7. Get the response from the language model
+    response = pipeline.run_llm(data_object.ragText, data_object.queries[0])
+    
+    logger.info(f"Response from the language model: {response}")
+    print(f"Response from the language model: {response}")
 
     logger.info("Pipeline completed successfully, check the log file for more details.")

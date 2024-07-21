@@ -18,6 +18,7 @@ class DataObject:
     embeddingAdded: Optional[bool] = False
     vectorDBLoaded: Optional[bool] = False
     similarityIndices: Optional[dict] = None
+    generatedResponse: Optional[str] = None
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if v is not None}
