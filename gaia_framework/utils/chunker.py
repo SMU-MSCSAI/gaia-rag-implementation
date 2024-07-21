@@ -23,7 +23,7 @@ class TextChunker:
         Chunk the text in the DataObject and update the DataObject with the list of chunks.
         Log the state of DataObject at each step.
         """
-        log_dataobject_step(data_object, "Input Text", log_file)   
+        log_dataobject_step(data_object, "Input Text To the Chunking Agent:", log_file)   
         text = data_object.textData
         if not text:
             return []
@@ -48,6 +48,6 @@ class TextChunker:
 
         data_object.chunks = chunks  # Save the chunks as a list in the DataObject
         # Log the state of the DataObject after chunking
-        log_dataobject_step(data_object, "After Chunking", log_file)
+        log_dataobject_step(data_object, "After Chunking Agent", log_file)
 
         return chunks, data_object

@@ -14,6 +14,10 @@ class DataObject:
     ragText: Optional[str] = None
     chunks: Optional[List[str]] = field(default_factory=list)
     llmResult: Optional[str] = None
+    vectorDBPersisted: Optional[bool] = False
+    embeddingAdded: Optional[bool] = False
+    vectorDBLoaded: Optional[bool] = False
+    similarityIndices: Optional[dict] = None
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if v is not None}

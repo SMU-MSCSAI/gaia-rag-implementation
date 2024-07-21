@@ -33,20 +33,26 @@ class VectorDatabase:
             faiss.Index: The FAISS index if db_type is 'faiss'.
         """
         if self.db_type == 'faiss':
+            logger.info("Creating FAISS db index.")
             if self.index_type == 'FlatL2':
+                logger.info("Create FAISS using FlatL2 index.")
                 return faiss.IndexFlatL2(self.dimension)
             elif self.index_type == 'IVFFlat':
+                logger.info("Create FAISS using IVFFlat index.")
                 quantizer = faiss.IndexFlatL2(self.dimension)
                 index = faiss.IndexIVFFlat(quantizer, self.dimension, 100)
                 index.nprobe = 10  # set the number of probes for IVFFlat
                 return index
             else:
+                logger.error(f"Unsupported FAISS index type: {self.index_type}")
                 raise ValueError(f"Unsupported FAISS index type: {self.index_type}")
         elif self.db_type == 'other_db':
+            logger.info("Creating other vector database index.")
             # Placeholder for another vector database initialization
             # Implement other vector database initialization here
             pass
         else:
+            logger.error(f"Unsupported database type: {self.db_type}")
             raise ValueError(f"Unsupported database type: {self.db_type}")
 
     def add_embeddings(self, data_object: DataObject, embeddings, log_file: str = "data_processing_log.txt"):
@@ -66,10 +72,12 @@ class VectorDatabase:
             if embeddings.ndim == 1:
                 embeddings = np.expand_dims(embeddings, axis=0)
             if embeddings.shape[1] != self.dimension:
-                raise ValueError("Embedding dimension does not match the index dimension.")
+                raise ValueError(f"Embedding dimension does not match the index dimension. Expected {self.dimension}, got {embeddings.shape[1]}.")
             self.index.add(embeddings)
             self.data.extend(embeddings.tolist())
-            log_dataobject_step(data_object, "Embeddings Added and Indexed", log_file)
+            data_object.vectorDB = self.db_type
+            data_object.embeddingAdded = True
+            log_dataobject_step(data_object, "After Embeddings Added and Indexed", log_file)
         except (ValueError, TypeError) as e:
             logger.error(f"Error adding embeddings: {e}")
             raise
@@ -126,7 +134,8 @@ class VectorDatabase:
             faiss.write_index(self.index, os.path.join(path, 'index.faiss'))
             np.save(os.path.join(path, 'data.npy'), np.array(self.data))
             logger.info(f"Embeddings saved locally to {path}")
-            log_dataobject_step(data_object, "Embeddings Saved Locally", log_file)
+            data_object.vectorDBPersisted = True
+            log_dataobject_step(data_object, "After Embeddings Saved Locally", log_file)
         except (OSError, ValueError) as e:
             logger.error(f"Error saving embeddings locally: {e}")
             raise
@@ -147,12 +156,14 @@ class VectorDatabase:
             log_dataobject_step(data_object, "Input Text to load local", log_file)
             logger.info(f"Loading embeddings locally from {path}")
             if not os.path.exists(path):
+                logger.error(f"Directory not found: {path}")
                 raise FileNotFoundError(f"Directory not found: {path}")
             self.index = faiss.read_index(os.path.join(path, 'index.faiss'))
             self.data = np.load(os.path.join(path, 'data.npy')).tolist()
             logger.info(f"Embeddings loaded from {path}")
             data_object.vectorDB = self.db_type
-            log_dataobject_step(data_object, "Embeddings Loaded Locally", log_file)
+            data_object.vectorDBLoaded = True
+            log_dataobject_step(data_object, "After Embeddings Loaded Locally", log_file)
         except (FileNotFoundError, ValueError) as e:
             logger.error(f"Error loading embeddings locally: {e}")
             raise
@@ -183,7 +194,8 @@ class VectorDatabase:
             }
             logger.info(f"Similarity indices: {similarity_results}")
             data_object.vectorDB = self.db_type
-            log_dataobject_step(data_object, "Similarity Indices Retrieved", log_file)
+            data_object.similarityIndices = similarity_results.get("indices")
+            log_dataobject_step(data_object, "After Similarity Indices Retrieved", log_file)
             return similarity_results
         except (ValueError, TypeError) as e:
             logger.error(f"Error getting similarity indices: {e}")
