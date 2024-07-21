@@ -58,7 +58,7 @@ class EmbeddingProcessor:
             self.logger.error(f"Error initializing model: {e}")
             raise
 
-    def embed_text(self, data_object, log_file: str = "embedding_log.txt"):
+    def embed_text(self, data_object, text: str, log_file: str = "embedding_log.txt"):
         """
         Generate embeddings for the given text using the specified model.
 
@@ -69,7 +69,6 @@ class EmbeddingProcessor:
         Returns:
             numpy.ndarray or list and dict: The generated embeddings and data object.
         """
-        text = data_object.textData
         self.logger.info(f"Embedding text using model: {self.model_name}")
         try:
             log_dataobject_step(data_object, "Input Logs to Embeddings Agent:", log_file)

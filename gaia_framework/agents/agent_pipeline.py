@@ -83,9 +83,9 @@ class Pipeline:
         chunks, data_object = self.chunker.chunk_text(self.data_object, self.log_file)
         return chunks, data_object
     
-    def process_data_embed(self):
+    def process_data_embed(self, text):
         #embed the chunks
-        embeddings, data_object = self.embedder.embed_text(self.data_object, self.log_file)
+        embeddings, data_object = self.embedder.embed_text(self.data_object, text, self.log_file)
         self.data_object = data_object
         return embeddings, data_object
         
@@ -124,18 +124,20 @@ class Pipeline:
             logger.warning(f"Path {path} does not exist. Please provide a valid path to load the index db or save the db first.")
             return False
         
-    # def search_embeddings(self, query_embedding, k=5):
-    #     """
-    #     Search the vector database for the top k most similar embeddings.
+    def search_embeddings(self, query_embedding, k=5):
+        """
+        Search the vector database for the top k most similar embeddings.
 
-    #     Args:
-    #         query_embedding (np.ndarray): The query embedding to search for.
-    #         k (int): The number of top similar embeddings to return. Default is 5.
+        Args:
+            query_embedding (np.ndarray): The query embedding to search for.
+            k (int): The number of top similar embeddings to return. Default is 5.
 
-    #     Returns:
-    #         dict: A dictionary containing the distances and indices of the top k similar embeddings.
-    #     """
-    #     return self.vector_db.get_similarity_indices(query_embedding, self.data_object, k)
+        Returns:
+            dict: A dictionary containing the distances and indices of the top k similar embeddings.
+        """
+        similar_indices = self.vector_db.get_similarity_indices(query_embedding, self.data_object, k, self.log_file)
+        return similar_indices
+    
 if __name__ == "__main__":
     data = "This is a test sentence about domestic animals, Here I come with another test sentence about the cats."
     data_object = DataObject(
@@ -158,20 +160,29 @@ if __name__ == "__main__":
                         data_object=data_object,
                         db_type='faiss', 
                         index_type='FlatL2', 
-                        chunk_size=15,
-                        chunk_overlap=5,
+                        chunk_size=20,
+                        chunk_overlap=6,
                         log_file=log_file)
-    # 1. Chunck and embed the text 
+    # 1. Chunk the text
     chunks, data_object = pipeline.process_data_chunk()
     
     # 2. If the db is already saved, load it, otherwise add the embeddings and save it
-    logger.info("Trying to Load the vector store from the local disk...")
+    logger.info("Trying to load the vector store from the local disk...")
     if not pipeline.load_local(db_path):
         # 2.1 Embed the chunks
-        embeddings, data_object = pipeline.process_data_embed()
-        #2.2 Add embeddings to the vector database
-        pipeline.add_embeddings(embeddings)
-        #2.3 Persist the vector store to the local disk or load if exist
+        all_embeddings = []
+        for chunk in data_object.chunks:
+            embeddings, data_object = pipeline.process_data_embed(chunk.text)
+            # 2.2 Add embeddings to the vector database
+            pipeline.add_embeddings(embeddings)
+        # 2.3 Persist the vector store to the local disk or load if exist
         pipeline.save_local(db_path)
+    
+    # 3. Embed the query
+    data_object.queries = ["what's this test about?"]
+    query_embedding = pipeline.process_data_embed(data_object.queries[0])
+    
+    # 4. Search for the top k most similar embeddings
+    similar_indices = pipeline.search_embeddings(query_embedding, k=5)
     
     print("Pipeline completed successfully, check the log file for more details.")

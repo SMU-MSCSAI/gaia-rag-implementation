@@ -67,12 +67,16 @@ class VectorDatabase:
         try:
             log_dataobject_step(data_object, "Input Text to embedding indexing", log_file)
             logger.info("Adding embeddings to the vector database.")
-            if isinstance(embeddings, list):
-                embeddings = np.array(embeddings).astype(np.float32)
+            
+            if isinstance(embeddings, (tuple, list)):
+                embeddings = np.array([np.array(embedding).astype(np.float32) for embedding in embeddings])
+            
             if embeddings.ndim == 1:
                 embeddings = np.expand_dims(embeddings, axis=0)
+            
             if embeddings.shape[1] != self.dimension:
                 raise ValueError(f"Embedding dimension does not match the index dimension. Expected {self.dimension}, got {embeddings.shape[1]}.")
+            
             self.index.add(embeddings)
             self.data.extend(embeddings.tolist())
             data_object.vectorDB = self.db_type
@@ -97,19 +101,25 @@ class VectorDatabase:
         Returns:
             tuple: Distances and indices of the top k similar embeddings.
         """
+        query_embedding = query_embedding[0]
         try:
-            log_dataobject_step(data_object, "Input Text to embedding search", log_file)
             logger.info("Searching embeddings in the vector database.")
-            if isinstance(query_embedding, list):
+            
+            # Ensure query_embedding is a numpy array
+            if isinstance(query_embedding, (tuple, list)):
+                query_embedding = np.array([np.array(embedding).astype(np.float32) for embedding in query_embedding])
+                
+            elif isinstance(query_embedding, list):
                 query_embedding = np.array(query_embedding).astype(np.float32)
+                
             if query_embedding.ndim == 1:
                 query_embedding = np.expand_dims(query_embedding, axis=0)
+                
             if query_embedding.shape[1] != self.dimension:
                 raise ValueError("Query embedding dimension does not match the index dimension.")
+                
             logger.info(f"Query embedding shape: {query_embedding.shape}")
             distances, indices = self.index.search(query_embedding, k)
-            data_object.queries = query_embedding.tolist()
-            log_dataobject_step(data_object, "Embeddings Searched", log_file)
             return distances, indices
         except (ValueError, TypeError) as e:
             logger.error(f"Error searching embeddings: {e}")
