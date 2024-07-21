@@ -135,8 +135,8 @@ class Pipeline:
         Returns:
             dict: A dictionary containing the distances and indices of the top k similar embeddings.
         """
-        similar_indices = self.vector_db.get_similarity_indices(query_embedding, self.data_object, k, self.log_file)
-        return similar_indices
+        similar_results = self.vector_db.get_similarity_indices(query_embedding, self.data_object, k, self.log_file)
+        return similar_results
     
 if __name__ == "__main__":
     data = "This is a test sentence about domestic animals, Here I come with another test sentence about the cats."
@@ -160,8 +160,8 @@ if __name__ == "__main__":
                         data_object=data_object,
                         db_type='faiss', 
                         index_type='FlatL2', 
-                        chunk_size=20,
-                        chunk_overlap=6,
+                        chunk_size=512,
+                        chunk_overlap=50,
                         log_file=log_file)
     # 1. Chunk the text
     chunks, data_object = pipeline.process_data_chunk()
@@ -183,6 +183,12 @@ if __name__ == "__main__":
     query_embedding = pipeline.process_data_embed(data_object.queries[0])
     
     # 4. Search for the top k most similar embeddings
-    similar_indices = pipeline.search_embeddings(query_embedding, k=5)
-    
-    print("Pipeline completed successfully, check the log file for more details.")
+    similar_results = pipeline.search_embeddings(query_embedding, k=5)
+    indices = similar_results.get('indices')[0]  # Extract the first list of indices
+
+    # 5. Get the ragText from the data object using the indices from the similar results
+    # Iterate over the indices to get the text out of the indexed chunks
+    ragText = " ".join([data_object.chunks[idx].text for idx in indices])
+    print(f"RagText: {ragText}")
+
+    logger.info("Pipeline completed successfully, check the log file for more details.")
