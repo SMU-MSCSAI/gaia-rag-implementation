@@ -63,7 +63,7 @@ To set up the project, follow these steps:
 To run the project, use the following command:
 
 ```bash
-poetry run gaia-framework
+poetry run gaia-framework/<file>
 ```
 To run tests, use the following command:
 

@@ -1,8 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from gaia_framework.utils.data_object import DataObject
 from gaia_framework.utils.logger_util import log_dataobject_step
 
-
+@dataclass
+class Chunk:
+    text: str
+    start_index: int
+    end_index: int
 
 class TextChunker:
     """
@@ -39,12 +43,11 @@ class TextChunker:
                     end = start + separator_index + 1  # Adjust the end to include the separator
                     chunk = text[start:end]
 
-            chunks.append(chunk.strip())
+            chunks.append(Chunk(text=chunk.strip(), start_index=start, end_index=end))
             start += self.chunk_size - self.chunk_overlap
 
         data_object.chunks = chunks  # Save the chunks as a list in the DataObject
-
         # Log the state of the DataObject after chunking
         log_dataobject_step(data_object, "After Chunking", log_file)
 
-        return chunks
+        return chunks, data_object

@@ -11,7 +11,7 @@ from gaia_framework.utils.data_object import DataObject
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def chunk_and_embed_text(text_data, chunk_size, chunk_overlap):
+def chunk_and_embed_text(text_data, chunk_size, chunk_overlap, data_object, log_file="data_processing_log.txt", model):
     """
     Chunk and embed the text data.
 
@@ -30,7 +30,7 @@ def chunk_and_embed_text(text_data, chunk_size, chunk_overlap):
     embeddings = [embedder.embed_text(chunk) for chunk in chunks]
     return embeddings, chunks
 
-def initialize_vector_db(dimension, db_type, embeddings):
+def embed_chunks(dimension, db_type, ):
     """
     Initialize the vector database and add embeddings.
 
@@ -42,9 +42,9 @@ def initialize_vector_db(dimension, db_type, embeddings):
     Returns:
         VectorDatabase: The initialized vector database.
     """
-    vector_db = VectorDatabase(dimension, db_type)
-    data_object = DataObject(id="vector_db", domain="example_domain", docsSource="example_source")
-    vector_db.add_embeddings(data_object, embeddings)
+    vector_db = VectorDatabase(dimension, db_type) # Initialize the vector database and create the index
+    index = vector_db._create_index()
+    vector_db.index = index
     return vector_db
 
 def persist_vector_store(vector_db, path, data_object):
@@ -71,7 +71,7 @@ def load_vector_store(vector_db, path, data_object):
     """
     vector_db.load_local(path, data_object)
 
-def get_similarity_and_rag_text(vector_db, user_query, chunks, data_object):
+def get_similarity_and_rag_text(vector_db, user_query, data_object):
     """
     Get similarity indices and reconstruct the relevant text.
 
@@ -88,28 +88,10 @@ def get_similarity_and_rag_text(vector_db, user_query, chunks, data_object):
     embedder = EmbeddingProcessor()
     query_embedding = embedder.embed_text(user_query).reshape(1, -1)
     similarity_results = vector_db.get_similarity_indices(query_embedding, data_object)
+    chunks = data_object.chunks
     relevant_chunks = [chunks[idx] for idx in similarity_results["indices"][0]]
     rag_text = ' '.join(relevant_chunks)
     return similarity_results, rag_text
-
-def create_and_save_json_output(data_object, similarity_results, rag_text, db_type):
-    """
-    Create and save the JSON output to a file.
-
-    Args:
-        data_object (DataObject): The data object to update with results.
-        similarity_results (dict): The similarity results.
-        rag_text (str): The relevant text.
-        db_type (str): The type of vector database.
-    """
-    data_object.ragText = rag_text
-    data_object.vectorDB = db_type
-    data_object.similarityResults = similarity_results
-
-    json_file = "output.json"
-    with open(json_file, 'w') as file:
-        json.dump(data_object.to_dict(), file)
-    logger.info("JSON output saved to output.json")
 
 def main(db_type='faiss', chunk_size=512, chunk_overlap=50):
     """

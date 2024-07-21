@@ -67,7 +67,7 @@ class EmbeddingProcessor:
             log_file (str): The file to log processing steps.
 
         Returns:
-            numpy.ndarray or list: The generated embeddings.
+            numpy.ndarray or list and dict: The generated embeddings and data object.
         """
         text = data_object.textData
         self.logger.info(f"Embedding text using model: {self.model_name}")
@@ -82,7 +82,7 @@ class EmbeddingProcessor:
                 embeddings = outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
                 data_object.embedding = embeddings.tolist()
                 log_dataobject_step(data_object, "Hugging Face Embeddings", log_file)
-                return embeddings
+                return embeddings, data_object
 
             elif self.model_name in self.SUPPORTED_MODELS["openai"]:
                 # Generate embeddings using OpenAI model with the new API
@@ -93,7 +93,7 @@ class EmbeddingProcessor:
                 embeddings = response.data[0].embedding
                 data_object.embedding = embeddings
                 log_dataobject_step(data_object, "OpenAI Embeddings", log_file)
-                return embeddings
+                return embeddings, data_object
 
             else:
                 self.logger.error(f"Unsupported model during embedding: {self.model_name}")

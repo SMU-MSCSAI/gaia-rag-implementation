@@ -1,8 +1,7 @@
 import json
-
 from gaia_framework.utils.data_object import DataObject
 
-def log_dataobject_step(data_object: DataObject, step_description: str, log_file: str = "../../data/data_processing_log.txt"):
+def log_dataobject_step(data_object: DataObject, step_description: str, log_file: str = "data_processing_log.txt"):
     """
     Log the current state of the DataObject with a description of the step.
 
@@ -11,11 +10,17 @@ def log_dataobject_step(data_object: DataObject, step_description: str, log_file
         step_description (str): A description of the current step in the process.
         log_file (str): The file to write the log to.
     """
+    # Convert the DataObject to a dictionary
+    data_dict = data_object.to_dict()
+    # Exclude the chunk indices from the log entry
+    if 'chunks' in data_dict:
+        data_dict['chunks'] = [chunk.text for chunk in data_dict['chunks']]
+
     log_entry = {
         "step": step_description,
-        "data": data_object.to_dict()
+        "data": data_dict
     }
-    
+
     # Truncate the embedding for logging if it exists
     if "embedding" in log_entry["data"] and isinstance(log_entry["data"]["embedding"], list):
         log_entry["data"]["embedding"] = log_entry["data"]["embedding"][:2] + ["..."]
