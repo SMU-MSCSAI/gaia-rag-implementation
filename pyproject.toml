@@ -5,16 +5,19 @@ description = "GAIA: Generative Agent Integration Architecture for Autonomous an
 authors = ["Tew Tango <ttew@smu.edu>", "drC <coyle@lyle.smu.edu>"]
 license = "MIT"
 readme = "README.md"
+package-mode = false  # Disable package mode
 
 [tool.poetry.dependencies]
 python = "^3.10"
 transformers = "^4.9.1"
 torch = "^1.9.0"
 faiss-cpu = "^1.7.1"
-
 numpy = "<2.0.0"
 openai = "^1.35.12"
 black = "^24.4.2"
+fastapi = "^0.111.1"
+uvicorn = "^0.30.3"
+
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
 python-dotenv = "^0.19.0"

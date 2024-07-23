@@ -191,7 +191,7 @@ class Pipeline:
         else:
             logger.warning("No valid local models found.")
         
-        return valid_models
+        return valid_models, model_names
     
     def run_llm(self, context, query):
         """

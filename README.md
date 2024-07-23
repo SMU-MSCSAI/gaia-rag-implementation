@@ -80,6 +80,13 @@ Then run
 poetry install
 ```
 
+Run the api:
+```bash
+poetry run uvicorn main:app --reload
+```
+
+Open ```http://127.0.0.1:8000/docs```
+
 ## Project Structure
 
 ![alt text](images/image.png)
