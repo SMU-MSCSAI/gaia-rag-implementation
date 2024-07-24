@@ -1,3 +1,6 @@
+# The `Pipeline` class in the provided Python code handles text processing tasks such as chunking,
+# embedding, vector database operations, language model execution, and PDF text extraction in a
+# structured pipeline fashion.
 import logging
 import os
 import numpy as np
@@ -74,6 +77,7 @@ class Pipeline:
         self.supported_local_models = supported_local_models
         self.openai_key = api_key
         self.local_endpoint = local_endpoint
+        self.model_name = model_name
 
         self.data_collector = DataCollector(base_path=base_path, log_file=self.log_file)
         self.chunker = TextChunker(self.chunk_size, self.chunk_overlap, separator=",")
@@ -141,7 +145,7 @@ class Pipeline:
                 f"Path {path} already exists. Please provide a db name to create another index db locally."
             )
 
-    def load_local(self, path):
+    def load_vectordb_locall(self, path):
         """
         Load the vector store from the local disk.
 
@@ -190,7 +194,7 @@ class Pipeline:
         ragText = " ".join([data_object.chunks[idx].text for idx in indices])
         self.data_object.ragText = ragText
         log_dataobject_step(self.data_object, "After RagText Retrieved", self.log_file)
-        logger.info(f"RagText Retrieved: {ragText}")
+        logger.info(f"RagText Retrieved successfully!")
         return ragText
 
     def load_local_ollama(self):
@@ -206,6 +210,12 @@ class Pipeline:
         for name in model_names:
             if name in self.supported_local_models:
                 valid_models = name
+            if self.model_name in self.supported_local_models and self.model_name not in model_names:
+                # download the ollama model locally
+                logger.info(f"Model {self.model_name} not found locally. Downloading it from ollama model registry....\n")
+                response = self.llm.download_model(self.model_name)
+                print(response)
+                model_names.append(self.model_name)
         if valid_models:
             logger.info(f"Valid local models loaded successfully: {valid_models}")
         else:
@@ -224,6 +234,13 @@ class Pipeline:
         Returns:
             str: The response from the language model.
         """
+        logger.info(f"Checking if the model exists in the list of supported local models.")
+        models = self.load_local_ollama()
+        if models:
+            self.model_name = models[0]
+            response = self.llm.run_query(context, query)
+        else:
+            logger.warning(f"Model {self.model_name} not found in the list of supported local models.\n")
         response = self.llm.run_query(context, query)
         return response
 
@@ -253,11 +270,13 @@ if __name__ == "__main__":
         llmResult=None,
     )
 
+    # embedding_model_name = "text-embedding-ada-002"
+    embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
     log_file = "./data/data_processing_log.txt"
-    db_path = "./data/doc_index_db"
-
+    db_path = f"./data/doc_index_db_{embedding_model_name}"
+    
     pipeline = Pipeline(
-        embedding_model_name="text-embedding-ada-002",
+        embedding_model_name=embedding_model_name,
         data_object=data_object,
         db_type="faiss",
         index_type="FlatL2",
@@ -265,7 +284,7 @@ if __name__ == "__main__":
         chunk_overlap=50,
         base_path="./data",
         log_file=log_file,
-        model_name="llama3",
+        model_name="openchat",
     )
 
     # 0. Extract the text data from a PDF file
@@ -279,7 +298,7 @@ if __name__ == "__main__":
 
     # # 2. If the db is already saved, load it, otherwise add the embeddings and save it
     logger.info("Trying to load the vector store from the local disk...\n\n")
-    if not pipeline.load_local(db_path):
+    if not pipeline.load_vectordb_locall(db_path):
         # 2.1 Embed the chunks
         all_embeddings = []
         for chunk in data_object.chunks:
@@ -305,8 +324,8 @@ if __name__ == "__main__":
     ragText = pipeline.retrieveRagText(indices)
 
     # # 6. Run the language model with the context and query
-    logger.info("Running the language model...\n\n")
-    local_models = pipeline.load_local_ollama()
+    # logger.info("Running the language model...\n\n")
+    # local_models = pipeline.load_local_ollama()
 
     # # 7. Get the response from the language model
     logger.info("Getting the response from the language model...\n\n")

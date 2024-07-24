@@ -1,17 +1,15 @@
 import logging
 import os
+import time
 from typing import Optional, List
 import ollama
 from dataclasses import dataclass
 from openai import OpenAI
 import requests
+from tqdm import tqdm
 
 from gaia_framework.utils.data_object import DataObject
 from gaia_framework.utils.logger_util import log_dataobject_step
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 
 @dataclass
 class LLMRunner:
@@ -38,6 +36,8 @@ class LLMRunner:
             """
         self.data_object = data_object
         self.log_file = log_file
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
 
     def get_supported_local_models(self) -> List[str]:
         """
@@ -47,7 +47,7 @@ class LLMRunner:
             List[str]: List of supported local model names with their parameter sizes.
         """
         try:
-            logger.info("Fetching supported models from Ollama server.")
+            self.logger.info("Fetching supported models from Ollama server.")
             response = self.ollama_client.list()
             models = response.get("models", [])
 
@@ -58,9 +58,46 @@ class LLMRunner:
             ]
             return model_names
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching supported models: {e}")
+            self.logger.error(f"Error fetching supported models: {e}")
             print(f"Error fetching supported models: {e}")
             return []
+
+    def download_model(self, model_name: str) -> str:
+        """
+        Download the specified model from the Ollama server.
+
+        Args:
+            model_name (str): The name of the model to download.
+
+        Returns:
+            str: The path to the downloaded model.
+        """
+        try:
+            self.logger.info(f"Downloading model: {model_name}")
+
+            dots = ""
+            max_dots = 10
+            pbar = tqdm(total=100, desc=f"Downloading {model_name}..........", unit='%', ncols=100, bar_format='{desc}')
+            while True:
+                response = self.ollama_client.pull(model=model_name)
+                if response.get('status') == 'success':
+                    pbar.n = 100
+                    pbar.refresh()
+                    pbar.close()
+                    break
+
+                # Update dots for the progress bar
+                dots = (dots + ".") if len(dots) < max_dots else "."
+                desc = f"Downloading {model_name}{dots.ljust(max_dots)}.........."
+                pbar.set_description(desc)
+                pbar.refresh()
+
+                time.sleep(1)  # Polling interval
+            return response
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Error downloading model: {e}")
+            print(f"Error downloading model: {e}")
+            return ""
 
     def run_query(self, context: str, query: str) -> str:
         """
@@ -73,17 +110,17 @@ class LLMRunner:
         Returns:
             str: The LLM's response to the query.
         """
-        logger.info(f"Running query with context: {context} and query: {query}")
+        self.logger.info(f"Running query with context and query: {query}")
         if self.model:
             log_dataobject_step(
                 self.data_object, "Input Text to LLM Agent", self.log_file
             )
-            logger.info(
+            self.logger.info(
                 f"Checking if model {self.model} is in the list of supported local models."
             )
             if self.model in self.supported_local_models:
                 try:
-                    logger.info(f"Generating response using Ollama model: {self.model}")
+                    self.logger.info(f"Generating response using Ollama model: {self.model}")
                     response = self.ollama_client.generate(
                         model=self.model,
                         prompt=f"{self.system_prompt}\n\nContext: {context}\n\nQuery: {query}",
@@ -94,14 +131,14 @@ class LLMRunner:
                     )
                     return response["response"]
                 except ollama.OllamaError as e:
-                    logger.error(f"Error with Ollama request: {e}")
+                    self.logger.error(f"Error with Ollama request: {e}")
                     return f"Error with Ollama request: {e}"
             else:
                 return (
                     f"Model {self.model} is not in the list of supported local models."
                 )
         elif self.api_key and self.model:
-            logger.info(f"Generating response using OpenAI model: {self.model}")
+            self.logger.info(f"Generating response using OpenAI model: {self.model}")
             response = self.client.completions.create(
                 model=self.model,
                 prompt=[
@@ -112,7 +149,7 @@ class LLMRunner:
             )
             return response.choices[0]["message"]["content"]
         else:
-            logger.error(
+            self.logger.error(
                 "No valid API key for OpenAI or local endpoint provided for LLM."
             )
             raise ValueError(
