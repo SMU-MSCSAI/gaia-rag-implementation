@@ -16,22 +16,22 @@ def setup_data_collector():
 
 def run_test(collector):
   
-    test_input = '''
-    {
-      "id": "tester",
-      "domain": "https://www.scrapethissite.com/pages/",
-      "docsSource": "web",
-      "queries": ["Boeing still stuck?", "Bring the astronauts home"]
-    }
-    '''
     # test_input = '''
     # {
-    # "id": "smu_test",
-    # "domain": "https://catalog.smu.edu/preview_entity.php?catoid=64&ent_oid=6783",
-    # "docsSource": "web",
-    # "queries": ["ipsom lorem", "lorem ipson"]
+    #   "id": "tester",
+    #   "domain": "https://www.scrapethissite.com/pages/",
+    #   "docsSource": "web",
+    #   "queries": ["Boeing still stuck?", "Bring the astronauts home"]
     # }
     # '''
+    test_input = '''
+    {
+    "id": "smu_test",
+    "domain": "https://.edu/preview_entity.php?catoid=64&ent_oid=6783",
+    "docsSource": "web",
+    "queries": ["ipsom lorem", "lorem ipson"]
+    }
+    '''
     result = collector.process(test_input)
     print("\nDataCollector Result:")
     print(result)

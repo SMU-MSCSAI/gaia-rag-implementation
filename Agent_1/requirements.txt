@@ -3,3 +3,7 @@ requests==2.25.1
 selenium==3.141.0
 pypdf
 chromedriver
+streamlit
+anthropic
+openai
+python-dotenv
