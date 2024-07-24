@@ -30,6 +30,7 @@ class Pipeline:
         base_path: str = "./data",
         local_endpoint=None,
         api_key=None,
+        file_name=""
     ):
         """
             Usage of the Pipeline class.
@@ -88,8 +89,7 @@ class Pipeline:
         self.llm = LLMRunner(
             api_key=self.openai_key,
             local_endpoint=self.local_endpoint,
-            model=model_name,
-            supported_local_models=self.supported_local_models,
+            model=self.model_name,
             data_object=self.data_object,
             log_file=self.log_file,
         )
@@ -191,7 +191,7 @@ class Pipeline:
             self.data_object, "Input Text to RagText Retrieval", self.log_file
         )
         logger.info("Retrieving RagText.")
-        ragText = " ".join([data_object.chunks[idx].text for idx in indices])
+        ragText = " ".join([self.data_object.chunks[idx].text for idx in indices])
         self.data_object.ragText = ragText
         log_dataobject_step(self.data_object, "After RagText Retrieved", self.log_file)
         logger.info(f"RagText Retrieved successfully!")
@@ -206,21 +206,19 @@ class Pipeline:
             model[0].split(":")[0] for model in local_models
         ]  # Adjusted splitting to match your format
         # Check if the local models are among the supported local models
-        valid_models = None
+        valid_models = []
         for name in model_names:
             if name in self.supported_local_models:
-                valid_models = name
+                valid_models.append(name)
             if self.model_name in self.supported_local_models and self.model_name not in model_names:
                 # download the ollama model locally
                 logger.info(f"Model {self.model_name} not found locally. Downloading it from ollama model registry....\n")
                 response = self.llm.download_model(self.model_name)
-                print(response)
                 model_names.append(self.model_name)
         if valid_models:
             logger.info(f"Valid local models loaded successfully: {valid_models}")
         else:
             logger.warning("No valid local models found.")
-
         return valid_models, model_names
 
     def run_llm(self, context, query):
@@ -235,12 +233,12 @@ class Pipeline:
             str: The response from the language model.
         """
         logger.info(f"Checking if the model exists in the list of supported local models.")
-        models = self.load_local_ollama()
-        if models:
-            self.model_name = models[0]
-            response = self.llm.run_query(context, query)
-        else:
-            logger.warning(f"Model {self.model_name} not found in the list of supported local models.\n")
+        _, model_names = self.load_local_ollama()
+        if not self.model_name in model_names:
+            logger.error(f"Model {self.model_name} not found in the list of supported local models.\n")
+            raise ValueError(f"Model {self.model_name} not found in the list of supported local models.")
+        self.llm.model = self.model_name
+        response = self.llm.run_query(context, query)
         response = self.llm.run_query(context, query)
         return response
 

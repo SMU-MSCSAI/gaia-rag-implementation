@@ -18,14 +18,12 @@ class LLMRunner:
         api_key: Optional[str] = None,
         local_endpoint: Optional[str] = None,
         model: Optional[str] = None,
-        supported_local_models: List[str] = None,
         data_object: DataObject = None,
         log_file: str = "data_processing_log.txt",
     ):
         self.api_key = api_key
         self.local_endpoint = local_endpoint
         self.model = model
-        self.supported_local_models = supported_local_models
         self.ollama_client = ollama.Client() if self.model else None
         self.openai_client = (
             OpenAI(api_key=os.getenv("OPENAI_API_KEY")) if api_key and model else None
@@ -115,28 +113,20 @@ class LLMRunner:
             log_dataobject_step(
                 self.data_object, "Input Text to LLM Agent", self.log_file
             )
-            self.logger.info(
-                f"Checking if model {self.model} is in the list of supported local models."
-            )
-            if self.model in self.supported_local_models:
-                try:
-                    self.logger.info(f"Generating response using Ollama model: {self.model}")
-                    response = self.ollama_client.generate(
-                        model=self.model,
-                        prompt=f"{self.system_prompt}\n\nContext: {context}\n\nQuery: {query}",
-                    )
-                    self.data_object.generatedResponse = response["response"]
-                    log_dataobject_step(
-                        self.data_object, "After LLM Response Generated", self.log_file
-                    )
-                    return response["response"]
-                except ollama.OllamaError as e:
-                    self.logger.error(f"Error with Ollama request: {e}")
-                    return f"Error with Ollama request: {e}"
-            else:
-                return (
-                    f"Model {self.model} is not in the list of supported local models."
+            try:
+                self.logger.info(f"Generating response using Ollama model: {self.model}")
+                response = self.ollama_client.generate(
+                    model=self.model,
+                    prompt=f"{self.system_prompt}\n\nContext: {context}\n\nQuery: {query}",
                 )
+                self.data_object.generatedResponse = response["response"]
+                log_dataobject_step(
+                    self.data_object, "After LLM Response Generated", self.log_file
+                )
+                return response["response"]
+            except ollama.OllamaError as e:
+                self.logger.error(f"Error with Ollama request: {e}")
+                return f"Error with Ollama request: {e}"
         elif self.api_key and self.model:
             self.logger.info(f"Generating response using OpenAI model: {self.model}")
             response = self.client.completions.create(

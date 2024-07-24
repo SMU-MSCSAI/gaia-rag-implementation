@@ -107,7 +107,7 @@ class VectorDatabase:
         self,
         data_object: DataObject,
         query_embedding,
-        k=5,
+        k=10,
         log_file: str = "data_processing_log.txt",
     ):
         """
