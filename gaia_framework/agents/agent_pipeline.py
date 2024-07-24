@@ -7,7 +7,7 @@ from gaia_framework.utils.chunker import TextChunker
 from gaia_framework.utils.data_object import DataObject
 from gaia_framework.utils.embedding_processor import EmbeddingProcessor
 from gaia_framework.utils.logger_util import log_dataobject_step, reset_log_file
-
+from gaia_framework.agents.agent1.data_collector import DataCollector
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,7 +36,8 @@ class Pipeline:
                 chunk_size=512, 
                 chunk_overlap=50,
                 log_file="data_processing_log.txt",
-                model_name= "lamma2",
+                model_name= "llamma2",
+                base_path: str = "./data",
                 local_endpoint=None,
                 api_key=None):
         """
@@ -72,6 +73,7 @@ class Pipeline:
         self.openai_key = api_key
         self.local_endpoint = local_endpoint
         
+        self.data_collector = DataCollector(base_path=base_path, log_file=self.log_file)
         self.chunker = TextChunker(self.chunk_size, self.chunk_overlap, separator=",")
         self.embedder = EmbeddingProcessor(self.embedding_model_name)
         # instantiate the class, and create the index (data structure sufficient to store the embeddings)
@@ -207,6 +209,16 @@ class Pipeline:
         response = self.llm.run_query(context, query)
         return response
     
+    def extract_pdf_data(self, file_path, data_object):
+        """
+        Extract the text data from a PDF file.
+
+        Args:
+            file_path (str): The path to the PDF file to extract text from.
+        """
+        data_object = self.data_collector.process_pdf(file_path, data_object)
+        return data_object
+    
 if __name__ == "__main__":
     data = "This is a test sentence about domestic animals, Here I come with another test sentence about the cats."
     data_object = DataObject(
@@ -231,42 +243,48 @@ if __name__ == "__main__":
                         index_type='FlatL2', 
                         chunk_size=512,
                         chunk_overlap=50,
+                        base_path="./data",
                         log_file=log_file,
                         model_name="llama3")
+    
+    #0. Extract the text data from a PDF file
+    pdf_file_path = "./files/Google_Cert_Learning Plan.pdf"
+    data_object = pipeline.extract_pdf_data(pdf_file_path, data_object)
+
     #1. Chunk the text
     chunks, data_object = pipeline.process_data_chunk()
     
-    # 2. If the db is already saved, load it, otherwise add the embeddings and save it
-    logger.info("Trying to load the vector store from the local disk...")
-    if not pipeline.load_local(db_path):
-        # 2.1 Embed the chunks
-        all_embeddings = []
-        for chunk in data_object.chunks:
-            embeddings, data_object = pipeline.process_data_embed(chunk.text)
-            # 2.2 Add embeddings to the vector database
-            pipeline.add_embeddings(embeddings)
-        # 2.3 Persist the vector store to the local disk or load if exist
-        pipeline.save_local(db_path)
+    # # 2. If the db is already saved, load it, otherwise add the embeddings and save it
+    # logger.info("Trying to load the vector store from the local disk...")
+    # if not pipeline.load_local(db_path):
+    #     # 2.1 Embed the chunks
+    #     all_embeddings = []
+    #     for chunk in data_object.chunks:
+    #         embeddings, data_object = pipeline.process_data_embed(chunk.text)
+    #         # 2.2 Add embeddings to the vector database
+    #         pipeline.add_embeddings(embeddings)
+    #     # 2.3 Persist the vector store to the local disk or load if exist
+    #     pipeline.save_local(db_path)
     
-    # 3. Embed the query
-    data_object.queries = ["what's this test about?"]
-    query_embedding = pipeline.process_data_embed(data_object.queries[0])
+    # # 3. Embed the query
+    # data_object.queries = ["what's this test about?"]
+    # query_embedding = pipeline.process_data_embed(data_object.queries[0])
     
-    # 4. Search for the top k most similar embeddings
-    similar_results = pipeline.search_embeddings(query_embedding, k=5)
-    indices = similar_results.get('indices')[0]  # Extract the first list of indices
+    # # 4. Search for the top k most similar embeddings
+    # similar_results = pipeline.search_embeddings(query_embedding, k=5)
+    # indices = similar_results.get('indices')[0]  # Extract the first list of indices
 
-    # 5. Get the ragText from the data object using the indices from the similar results
-    # Iterate over the indices to get the text out of the indexed chunks
-    ragText = pipeline.retrieveRagText(indices)
+    # # 5. Get the ragText from the data object using the indices from the similar results
+    # # Iterate over the indices to get the text out of the indexed chunks
+    # ragText = pipeline.retrieveRagText(indices)
     
-    # 6. Run the language model with the context and query
-    local_models = pipeline.load_local_ollama()
+    # # 6. Run the language model with the context and query
+    # local_models = pipeline.load_local_ollama()
     
-    # 7. Get the response from the language model
-    response = pipeline.run_llm(data_object.ragText, data_object.queries[0])
+    # # 7. Get the response from the language model
+    # response = pipeline.run_llm(data_object.ragText, data_object.queries[0])
     
-    logger.info(f"Response from the language model: {response}")
-    print(f"Response from the language model: {response}")
+    # logger.info(f"Response from the language model: {response}")
+    # print(f"Response from the language model: {response}")
 
     logger.info("Pipeline completed successfully, check the log file for more details.")
