@@ -15,18 +15,6 @@ from gaia_framework.agents.agent1.data_collector import DataCollector
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Embedding dimensions for each model
-embedding_dimensions = {
-    "sentence-transformers/all-MiniLM-L6-v2": 384,
-    "bert-base-uncased": 768,
-    "roberta-base": 768,
-    "text-embedding-ada-002": 1536,
-    "text-embedding-babbage-001": 2048,
-    # Add more models and their dimensions as needed
-}
-
-supported_local_models = ["llamma2", "openchat", "gpt3", "llama3"]
-
 
 class Pipeline:
     def __init__(
@@ -60,8 +48,19 @@ class Pipeline:
             index_type (str, optional): index type. Defaults to 'FlatL2'.
             log_file (str, optional): log file. Defaults to "data_processing_log.txt".
         """
+        # Embedding dimensions for each model
+        self.embedding_dimensions = {
+            "sentence-transformers/all-MiniLM-L6-v2": 384,
+            "bert-base-uncased": 768,
+            "roberta-base": 768,
+            "text-embedding-ada-002": 1536,
+            "text-embedding-babbage-001": 2048,
+            # Add more models and their dimensions as needed
+        }
+
+
         # Retrieve the correct dimension for the selected model
-        self.dimension = embedding_dimensions.get(embedding_model_name)
+        self.dimension = self.embedding_dimensions.get(embedding_model_name)
         if self.dimension is None:
             raise ValueError(
                 f"Embedding dimension for model '{embedding_model_name}' not found."
@@ -74,12 +73,13 @@ class Pipeline:
         self.data_object = data_object
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.supported_local_models = supported_local_models
+        self.supported_local_models = ["llamma2", "openchat", "gpt3", "llama3"]
         self.openai_key = api_key
         self.local_endpoint = local_endpoint
         self.model_name = model_name
+        self.base_path = base_path
 
-        self.data_collector = DataCollector(base_path=base_path, log_file=self.log_file)
+        self.data_collector = DataCollector(base_path=self.base_path, log_file=self.log_file)
         self.chunker = TextChunker(self.chunk_size, self.chunk_overlap, separator=",")
         self.embedder = EmbeddingProcessor(self.embedding_model_name)
         # instantiate the class, and create the index (data structure sufficient to store the embeddings)
@@ -244,14 +244,14 @@ class Pipeline:
         response = self.llm.run_query(context, query)
         return response
 
-    def extract_pdf_data(self, file_path, data_object):
+    def extract_pdf_data(self):
         """
         Extract the text data from a PDF file.
 
         Args:
             file_path (str): The path to the PDF file to extract text from.
         """
-        data_object = self.data_collector.process_pdf(file_path, data_object)
+        data_object = self.data_collector.process_pdf(self.base_path, self.data_object)
         return data_object
 
 
