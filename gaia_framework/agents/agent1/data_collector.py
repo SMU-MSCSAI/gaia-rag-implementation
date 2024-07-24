@@ -93,15 +93,19 @@ class DataCollector:
             # pdf_text = PdfReader(io.BytesIO(response.content)).pages[0].extract_text()
             # process the entire PDF
             pdf_text = PdfReader(io.BytesIO(response.content)) 
+            data_object.docsSource = path_or_url
+            data_object.domain = urlparse(path_or_url).netloc
         else:
             # It's a local file path
             if os.path.exists(path_or_url):
-                pdf = PdfReader(path_or_url)
+                pdf_text = PdfReader(path_or_url)
+                data_object.docsSource = path_or_url
+                data_object.domain = "local"
             else:
                 raise FileNotFoundError(f"PDF file not found at {path_or_url}")
               
         # Extract text from all pages
-        for page in pdf.pages:
+        for page in pdf_text.pages:
             page_text = page.extract_text()
             if page_text:  # Ensure there's text to add
                 all_content.append(page_text.strip())
