@@ -105,16 +105,18 @@ class DataCollector:
                 raise FileNotFoundError(f"PDF file not found at {path_or_url}")
               
         # Extract text from all pages
+        link_pattern = re.compile(r'(https?://\S+)')
         for page in pdf_text.pages:
             page_text = page.extract_text()
-            if page_text:  # Ensure there's text to add
-                all_content.append(page_text.strip())
+            if page_text:
+                annotated_text = link_pattern.sub(r'<LINK: \1>', page_text)
+                all_content.append(annotated_text.strip())
                 
         # Join all content into a single string
         full_text = "\n".join(all_content)
         data_object.textData = full_text
         # Log the content in a cleaner way
-        self.logger.info(f"Extracted content from PDF: {path_or_url} | Content: {full_text[:100]}...")  # Log the first 100 characters for brevity
+        self.logger.info(f"Extracted content from PDF: {path_or_url} | Content: {full_text[:100]}...\n")  # Log the first 100 characters for brevity
         log_dataobject_step(data_object, "After PDF Processing", self.log_file)
         return data_object
       except Exception as e:

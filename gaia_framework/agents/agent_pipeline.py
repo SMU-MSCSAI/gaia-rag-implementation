@@ -310,7 +310,7 @@ if __name__ == "__main__":
 
     # # 3. Embed the query
     logger.info("Embedding the query...\n\n")
-    data_object.queries = ["when is this program starting? make your response short."]
+    data_object.queries = ["what are the included links? list all of them in a bulletpoint format."]
     query_embedding = pipeline.process_data_embed(data_object.queries[0])
 
     # # 4. Search for the top k most similar embeddings
