@@ -41,6 +41,7 @@ htmlcov/
 .tox/
 *.txt
 *.pdf
+*.pdf.json
 .nox/
 .coverage
 .coverage.*
