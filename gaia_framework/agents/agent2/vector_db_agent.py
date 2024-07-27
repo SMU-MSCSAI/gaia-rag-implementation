@@ -194,7 +194,9 @@ class VectorDatabase:
             log_file (str): The file to log processing steps.
         """
         try:
-            log_dataobject_step(data_object, "Input Text to load VectorDb local", log_file)
+            log_dataobject_step(
+                data_object, "Input Text to load VectorDb local", log_file
+            )
             logger.info(f"Loading embeddings locally from {path}")
             if not os.path.exists(path):
                 logger.error(f"Directory not found: {path}")
@@ -204,9 +206,7 @@ class VectorDatabase:
             logger.info(f"Embeddings loaded from {path}")
             data_object.vectorDB = self.db_type
             data_object.vectorDBLoaded = True
-            log_dataobject_step(
-                data_object, "After VectorDB Loaded Locally", log_file
-            )
+            log_dataobject_step(data_object, "After VectorDB Loaded Locally", log_file)
         except (FileNotFoundError, ValueError) as e:
             logger.error(f"Error loading embeddings locally: {e}")
             raise

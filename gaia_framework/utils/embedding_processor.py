@@ -1,3 +1,4 @@
+import re
 import torch
 from transformers import AutoTokenizer, AutoModel
 from openai import OpenAI
@@ -75,7 +76,6 @@ class EmbeddingProcessor:
         self.init(model_name)
         try:
             log_dataobject_step(data_object, "Input Logs to Embeddings Agent:", log_file)
-            
             if model_name in self.SUPPORTED_MODELS["huggingface"]:
                 # Tokenize and generate embeddings using Hugging Face model
                 inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True)
@@ -83,7 +83,7 @@ class EmbeddingProcessor:
                     outputs = self.model(**inputs)
                 embeddings = outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
                 data_object.embedding = embeddings.tolist()
-                log_dataobject_step(data_object, "After Hugging Face Embeddings Agent", log_file)
+                log_dataobject_step(data_object, f"After Hugging Face Embeddings Agent - First 5 values: {embeddings[:5]}", log_file)
                 return embeddings, data_object
 
             elif model_name in self.SUPPORTED_MODELS["openai"]:
@@ -94,7 +94,7 @@ class EmbeddingProcessor:
                 input = [text]  # Note the change here to wrap text in a list)
                 embeddings = response.data[0].embedding
                 data_object.embedding = embeddings
-                log_dataobject_step(data_object, "After OpenAI Embeddings Agent", log_file)
+                log_dataobject_step(data_object, f"After OpenAI Embeddings Agent - First 5 values: {embeddings[:5]}", log_file)
                 return embeddings, data_object
 
             else:

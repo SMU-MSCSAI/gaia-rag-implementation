@@ -1,3 +1,4 @@
+from numpy import copy
 import json, os, uuid, logging, requests, io, re, time, hashlib
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
@@ -8,6 +9,7 @@ from nltk.tokenize import sent_tokenize
 from nltk.corpus import stopwords
 import nltk
 from gaia_framework.utils.logger_util import log_dataobject_step
+import numpy as np
 
 nltk.download("punkt", quiet=True)
 nltk.download("stopwords", quiet=True)

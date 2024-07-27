@@ -19,6 +19,7 @@ class DataObject:
     vectorDBLoaded: Optional[bool] = False
     similarityIndices: Optional[dict] = None
     generatedResponse: Optional[str] = None
+    conversation_history: Optional[List[dict]] = field(default_factory=list)
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if v is not None}

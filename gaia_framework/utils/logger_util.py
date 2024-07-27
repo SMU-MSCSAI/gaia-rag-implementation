@@ -14,8 +14,11 @@ def log_dataobject_step(data_object: DataObject, step_description: str, log_file
     data_dict = data_object.to_dict()
     # Exclude the chunk indices from the log entry
     if 'chunks' in data_dict:
-        data_dict['chunks'] = [chunk.text for chunk in data_dict['chunks']]
-
+        data_dict['chunks'] = data_dict['chunks'][:5] + ["..."]
+    
+    if 'textData' in data_dict:
+        data_dict['textData'] = data_dict['textData'][:1000].join('...')
+    
     log_entry = {
         "step": step_description,
         "data": data_dict

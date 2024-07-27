@@ -11,6 +11,7 @@ from tqdm import tqdm
 from gaia_framework.utils.data_object import DataObject
 from gaia_framework.utils.logger_util import log_dataobject_step
 
+
 @dataclass
 class LLMRunner:
     def __init__(
@@ -47,7 +48,7 @@ class LLMRunner:
 
         Remember: You are part of a customizable workflow. Your responses should be adaptable to various embedding techniques, chunking algorithms, context sizes, and data sources (local or web-based).
         """
-        
+
         self.data_object = data_object
         self.log_file = log_file
         logging.basicConfig(level=logging.INFO)
@@ -91,10 +92,16 @@ class LLMRunner:
 
             dots = ""
             max_dots = 10
-            pbar = tqdm(total=100, desc=f"Downloading {model_name}..........", unit='%', ncols=100, bar_format='{desc}')
+            pbar = tqdm(
+                total=100,
+                desc=f"Downloading {model_name}..........",
+                unit="%",
+                ncols=100,
+                bar_format="{desc}",
+            )
             while True:
                 response = self.ollama_client.pull(model=model_name)
-                if response.get('status') == 'success':
+                if response.get("status") == "success":
                     pbar.n = 100
                     pbar.refresh()
                     pbar.close()
@@ -130,7 +137,9 @@ class LLMRunner:
                 self.data_object, "Input Text to LLM Agent", self.log_file
             )
             try:
-                self.logger.info(f"Generating response using Ollama model: {self.model}")
+                self.logger.info(
+                    f"Generating response using Ollama model: {self.model}"
+                )
                 response = self.ollama_client.generate(
                     model=self.model,
                     prompt=f"{self.system_prompt}\n\nContext: {context}\n\nQuery: {query}",

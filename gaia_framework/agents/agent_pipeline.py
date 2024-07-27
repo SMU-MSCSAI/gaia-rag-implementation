@@ -61,7 +61,6 @@ class Pipeline:
             # Add more models and their dimensions as needed
         }
 
-
         # Retrieve the correct dimension for the selected model
         self.dimension = self.embedding_dimensions.get(embedding_model_name)
         if self.dimension is None:
@@ -84,7 +83,9 @@ class Pipeline:
         self.top_k = top_k
         self.conversation_history = []
 
-        self.data_collector = DataCollector(base_path=self.base_path, log_file=self.log_file)
+        self.data_collector = DataCollector(
+            base_path=self.base_path, log_file=self.log_file
+        )
         self.chunker = TextChunker(self.chunk_size, self.chunk_overlap, separator=",")
         self.embedder = EmbeddingProcessor(self.embedding_model_name)
         # instantiate the class, and create the index (data structure sufficient to store the embeddings)
@@ -97,7 +98,7 @@ class Pipeline:
             data_object=self.data_object,
             log_file=self.log_file,
         )
-        
+
         self.prompt_chain = CustomPromptChain()
 
         # restart the log file after each run
@@ -123,7 +124,10 @@ class Pipeline:
     def process_data_embed(self, text):
         # embed the chunks
         embeddings, data_object = self.embedder.embed_text(
-            self.data_object, text, model_name=self.embedding_model_name, log_file=self.log_file
+            self.data_object,
+            text,
+            model_name=self.embedding_model_name,
+            log_file=self.log_file,
         )
         self.data_object = data_object
         return embeddings, data_object
@@ -198,9 +202,11 @@ class Pipeline:
         )
         logger.info("Retrieving RagText.")
         try:
-            ragText = " ".join([self.data_object.chunks[idx].text for idx in indices])
+            ragText = " ".join([self.data_object.chunks[idx] for idx in indices])
             self.data_object.ragText = ragText
-            log_dataobject_step(self.data_object, "After RagText Retrieved", self.log_file)
+            log_dataobject_step(
+                self.data_object, "After RagText Retrieved", self.log_file
+            )
             logger.info(f"RagText Retrieved successfully!")
             return ragText
         except IndexError as e:
@@ -223,9 +229,14 @@ class Pipeline:
         for name in model_names:
             if name in self.supported_local_models:
                 valid_models.append(name)
-            if self.model_name in self.supported_local_models and self.model_name not in model_names:
+            if (
+                self.model_name in self.supported_local_models
+                and self.model_name not in model_names
+            ):
                 # download the ollama model locally
-                logger.info(f"Model {self.model_name} not found locally. Downloading it from ollama model registry....\n")
+                logger.info(
+                    f"Model {self.model_name} not found locally. Downloading it from ollama model registry....\n"
+                )
                 response = self.llm.download_model(self.model_name)
                 model_names.append(self.model_name)
         if valid_models:
@@ -235,45 +246,50 @@ class Pipeline:
         return valid_models, model_names
 
     def run_llm(self, context, query, history_limit=5):
-        logger.info(f"Checking if the model exists in the list of supported local models.")
+        logger.info(
+            f"Checking if the model exists in the list of supported local models."
+        )
         _, model_names = self.load_local_ollama()
         if self.model_name not in model_names:
-            logger.error(f"Model {self.model_name} not found in the list of supported local models.\n")
-            raise ValueError(f"Model {self.model_name} not found in the list of supported local models.")
-        
+            logger.error(
+                f"Model {self.model_name} not found in the list of supported local models.\n"
+            )
+            raise ValueError(
+                f"Model {self.model_name} not found in the list of supported local models."
+            )
+
         self.llm.model = self.model_name
-        
+
         # Use CustomPromptChain
         prompt_context = {
             "context": context,
             "query": query,
             # Add any other context variables you need
         }
-        
+
         prompt_template = """
         User:
-            Context: {{ context }}, 
-            Conversation History: {{ conversation_history }}
+            Context: {{ context }} and Conversation History: {{ conversation_history }}
             Query: {{ query }}
         
         Please provide a detailed and accurate response based on the given context (which involves conversational history) and query. Make sure you don't add the conversational history in the response, only use it as a context to generate the response.
         """
-        
+
         try:
             response = self.prompt_chain.run(
                 context=prompt_context,
                 model=self.llm.model,
                 callable=self.llm.run_query,
                 prompt=prompt_template,
-                conversation_history=self.conversation_history
+                conversation_history=self.conversation_history,
             )
-            
+
             # Update conversation history
-            self.conversation_history.append({"user": query, "response": response})
-            
+            self.conversation_history.append({"query": query, "response": response})
+
             # Limit conversation history to last 5 exchanges
             self.conversation_history = self.conversation_history[-history_limit:]
-            
+
             return response
         except Exception as e:
             logger.error(f"Error running LLM: {str(e)}")
@@ -300,12 +316,15 @@ class Pipeline:
         self.dimension = self.embedding_dimensions.get(self.embedding_model_name)
         self.db_type = db_type
         self.index_type = index_type
-        logger.info(f"Reindexing the database, db_type: {self.db_type}, index_type: {self.index_type} with new embedding model dims: {self.dimension}")
+        logger.info(
+            f"Reindexing the database, db_type: {self.db_type}, index_type: {self.index_type} with new embedding model dims: {self.dimension}"
+        )
         self.vector_db = VectorDatabase(self.dimension, self.db_type, self.index_type)
-    
+
     def clear_conversation_history(self):
         self.conversation_history = []
-        
+
+
 if __name__ == "__main__":
     data = "This is a test sentence about domestic animals, Here I come with another test sentence about the cats."
     data_object = DataObject(
@@ -325,7 +344,7 @@ if __name__ == "__main__":
     embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
     log_file = "./data/data_processing_log.txt"
     db_path = f"./data/doc_index_db_{embedding_model_name}"
-    
+
     pipeline = Pipeline(
         embedding_model_name=embedding_model_name,
         data_object=data_object,
@@ -361,13 +380,15 @@ if __name__ == "__main__":
 
     # # 3. Embed the query
     logger.info("Embedding the query...\n\n")
-    data_object.queries = ["what are the included links? list all of them in a bulletpoint format."]
+    data_object.queries = [
+        "what are the included links? list all of them in a bulletpoint format."
+    ]
     query_embedding = pipeline.process_data_embed(data_object.queries[0])
 
     # # 4. Search for the top k most similar embeddings
     logger.info("Searching for the top k most similar embeddings...\n\n")
     similar_results = pipeline.search_embeddings(query_embedding)
-    indices = similar_results.get('indices')[0]  # Extract the first list of indices
+    indices = similar_results.get("indices")[0]  # Extract the first list of indices
 
     # # 5. Get the ragText from the data object using the indices from the similar results
     # # Iterate over the indices to get the text out of the indexed chunks

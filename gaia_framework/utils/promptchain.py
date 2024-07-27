@@ -9,20 +9,7 @@ class CustomPromptChain:
     """
     Class for dynamic prompt chaining with context, output back-references, and conversation history.
     """
-
-    @staticmethod
-    @lru_cache(maxsize=128)
-    def _parse_json(json_string: str) -> Union[Dict, List, str]:
-        try:
-            json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", json_string)
-            if json_match:
-                return json.loads(json_match.group(1))
-            else:
-                return json.loads(json_string)
-        except json.JSONDecodeError as e:
-            print(f"JSON decoding error: {e}")
-            return json_string
-
+    
     @staticmethod
     def run(
         context: Dict[str, Any],
@@ -32,8 +19,23 @@ class CustomPromptChain:
         conversation_history: List[Dict[str, str]] = None
     ) -> Any:
         """
-        Run a single prompt with context and conversation history.
+        Runs the prompt chain with the given context, model, callable, prompt, and conversation history.
+
+        Args:
+            context (Dict[str, Any]): The context dictionary containing variables for the prompt.
+            model (Any): The model to use for generating the prompt output.
+            callable (Callable): The callable function that takes the model and formatted prompt as arguments.
+            prompt (str): The prompt string with optional placeholders for context variables.
+            conversation_history (List[Dict[str, str]], optional): The conversation history as a list of dictionaries
+                containing 'query' and 'response' keys. Defaults to None.
+
+        Returns:
+            Any: The parsed JSON result of the prompt output.
+
+        Raises:
+            ValueError: If there is an error decoding the JSON result.
         """
+
         if conversation_history:
             context['conversation_history'] = "\n".join([
                 f"Q: {turn['query']}\nA: {turn['response']}"
@@ -47,3 +49,23 @@ class CustomPromptChain:
 
         result = callable(model, formatted_prompt)
         return CustomPromptChain._parse_json(result)
+    
+    @staticmethod
+    def _parse_json(result: str) -> Any:
+        """
+        Parses the result string as JSON.
+
+        Args:
+            result (str): The result string to parse.
+
+        Returns:
+            Any: The parsed JSON object, or the plain text if JSON parsing fails.
+        
+        Raises:
+            ValueError: If there is an error decoding the JSON result.
+        """
+        try:
+            return json.loads(result)
+        except json.JSONDecodeError:
+            # If JSON parsing fails, return the plain text result
+            return result
