@@ -1,7 +1,8 @@
 import json
 import logging
+from typing import Optional
 from urllib.parse import unquote
-from fastapi import FastAPI, File, UploadFile, HTTPException, Path
+from fastapi import FastAPI, File, Request, UploadFile, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from gaia_framework.agents.agent_pipeline import Pipeline
@@ -28,7 +29,8 @@ pipeline = Pipeline(embedding_model_name=embedding_model,
                     base_path=file_base_url,
                     log_file=log_file,
                     model_name="openchat",
-                    file_name="")
+                    file_name="",
+                    top_k=3)
 pipeline.file_name = f"./data/vdb_{pipeline.embedding_model_name}"
 # Allow CORS for your frontend application
 app.add_middleware(
@@ -41,6 +43,18 @@ app.add_middleware(
 
 class Query(BaseModel):
     query: str
+    history_limit: Optional[int] = 5
+    
+class Config(BaseModel):
+    embedding_model_name: Optional[str] = "text-embedding-ada-002"
+    db_type: Optional[str] = "faiss"
+    index_type: Optional[str] = "FlatL2"
+    chunk_size: Optional[int] = 150
+    chunk_overlap: Optional[int] = 50
+    base_path: Optional[str] = "./files/"
+    log_file: Optional[str] = "./data/data_processing_log.txt"
+    model_name: Optional[str] = "llama3"
+    top_k: Optional[int] = 5
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
@@ -101,10 +115,16 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=f"Error uploading file: {e}")
 
-
 @app.post("/chat/")
 async def chat(query: Query):
     try:
+        # req = await request.json()
+        # if not req:
+        #     raise HTTPException(status_code=400, detail="No query provided.")
+        
+        # query: Query = Query(**req)
+        # logger.info(f"Received query: {query.query}\n\n")
+        
         if len(pipeline.data_object.chunks) < 1:
             # Load chunks from disk if not in memory
             logger.info("Loading chunks from disk...\n\n")
@@ -117,33 +137,39 @@ async def chat(query: Query):
             with open(chunks_file, 'r') as f:
                 chunks_data = json.load(f)
                 pipeline.data_object.chunks = [data_object.Chunk(**chunk) for chunk in chunks_data]
-          
+            
         logger.info("Embedding the query...\n\n")
-        query.query = f"Query: {query.query}, <source>: <{pipeline.data_object.docsSource}>, and <domain>: <{pipeline.data_object.domain}>"
-        pipeline.data_object.queries = query.query
+        embedded_query = f"Query: {query.query}, <source>: <{pipeline.data_object.docsSource}>, and <domain>: <{pipeline.data_object.domain}>"
+        pipeline.data_object.queries = embedded_query
         query_embedding = pipeline.process_data_embed(pipeline.data_object.queries)
 
-        logger.info("Searching for the top k most similar embeddings...\n\n")
-        similar_results = pipeline.search_embeddings(query_embedding, k=3)
+        logger.info(f"Searching for the top {pipeline.top_k} most similar embeddings...\n\n")
+        similar_results = pipeline.search_embeddings(query_embedding)
         indices = similar_results.get('indices')[0]
 
         logger.info("Retrieving the ragText...\n\n")
         ragText = pipeline.retrieveRagText(indices)
 
         logger.info("Getting the response from the language model...\n\n")
-        response = pipeline.run_llm(ragText, pipeline.data_object.queries)
+        try:
+            response = pipeline.run_llm(ragText, query.query, history_limit=query.history_limit)  # Use original query here
+        except Exception as llm_error:
+            logger.error(f"LLM error: {str(llm_error)}")
+            raise HTTPException(status_code=500, detail=f"Error in language model processing: {str(llm_error)}")
         
         # Format the response to ensure readability
         formatted_response = response.replace('\n', '\n\n')
-
-        return {"response": formatted_response}, 200
+        conversational_history_len = len(pipeline.conversation_history)
+        return {
+            "response": formatted_response,
+            "conversation_history_length": conversational_history_len
+        }, 200
 
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
         logger.error(f"Error processing chat query: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing chat query: {e}")
-
 
 @app.get("/local/models/")
 async def get_supported_models():
@@ -190,7 +216,7 @@ async def set_embedding_model(index: int):
 @app.get("/current_config/")
 async def get_current_config():
     try:
-        config = {
+        config: Config = {
             "embedding_model_name": pipeline.embedding_model_name,
             "db_type": pipeline.db_type,
             "index_type": pipeline.index_type,
@@ -199,6 +225,7 @@ async def get_current_config():
             "base_path": pipeline.base_path,
             "log_file": pipeline.log_file,
             "model_name": pipeline.model_name,
+            "top_k": pipeline.top_k
         }
         return config, 200
     except Exception as e:
@@ -206,8 +233,11 @@ async def get_current_config():
         raise HTTPException(status_code=500, detail=f"Error fetching current configuration: {e}")
 
 @app.post("/config/")
-async def set_config(config: dict):
+async def set_config(request: Request):
     try:
+        # Update the pipeline configuration
+        config = await request.json()
+        
         if "embedding_model_name" in config:
             pipeline.embedding_model_name = config["embedding_model_name"]
         if "db_type" in config:
@@ -224,11 +254,11 @@ async def set_config(config: dict):
             pipeline.log_file = config["log_file"]
         if "model_name" in config:
             pipeline.model_name = config["model_name"]
+        if "top_k" in config:
+            pipeline.top_k = config["top_k"]
 
         pipeline.data_object = data_object  # Ensure data_object is updated
-        pipeline.reindex_db(pipeline.db_type, pipeline.index_type)
-            
-        config = {
+        config: Config = {
             "embedding_model_name": pipeline.embedding_model_name,
             "db_type": pipeline.db_type,
             "index_type": pipeline.index_type,
@@ -237,10 +267,18 @@ async def set_config(config: dict):
             "base_path": pipeline.base_path,
             "log_file": pipeline.log_file,
             "model_name": pipeline.model_name,
+            "top_k": pipeline.top_k
         }
+        
+        pipeline.reindex_db(pipeline.db_type, pipeline.index_type)
         
         response_message = f"Configuration updated successfully new configuration is: {config}"
         return {"message": response_message}, 200
     except Exception as e:
         logger.error(f"Error updating configuration: {e}")
         raise HTTPException(status_code=500, detail=f"Error updating configuration: {e}")
+
+@app.post("/clear_history/")
+async def clear_history():
+    pipeline.clear_conversation_history()
+    return {"message": "Conversation history cleared"}, 200

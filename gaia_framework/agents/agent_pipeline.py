@@ -11,6 +11,7 @@ from gaia_framework.utils.data_object import DataObject
 from gaia_framework.utils.embedding_processor import EmbeddingProcessor
 from gaia_framework.utils.logger_util import log_dataobject_step, reset_log_file
 from gaia_framework.agents.agent1.data_collector import DataCollector
+from gaia_framework.utils.promptchain import CustomPromptChain
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,7 +31,8 @@ class Pipeline:
         base_path: str = "./data",
         local_endpoint=None,
         api_key=None,
-        file_name=""
+        file_name="",
+        top_k=3,
     ):
         """
             Usage of the Pipeline class.
@@ -79,6 +81,8 @@ class Pipeline:
         self.local_endpoint = local_endpoint
         self.model_name = model_name
         self.base_path = base_path
+        self.top_k = top_k
+        self.conversation_history = []
 
         self.data_collector = DataCollector(base_path=self.base_path, log_file=self.log_file)
         self.chunker = TextChunker(self.chunk_size, self.chunk_overlap, separator=",")
@@ -93,6 +97,8 @@ class Pipeline:
             data_object=self.data_object,
             log_file=self.log_file,
         )
+        
+        self.prompt_chain = CustomPromptChain()
 
         # restart the log file after each run
         reset_log_file(self.log_file)
@@ -161,7 +167,7 @@ class Pipeline:
             )
             return False
 
-    def search_embeddings(self, query_embedding, k=5):
+    def search_embeddings(self, query_embedding):
         """
         Search the vector database for the top k most similar embeddings.
 
@@ -173,7 +179,7 @@ class Pipeline:
             dict: A dictionary containing the distances and indices of the top k similar embeddings.
         """
         similar_results = self.vector_db.get_similarity_indices(
-            query_embedding, self.data_object, k, self.log_file
+            query_embedding, self.data_object, self.top_k, self.log_file
         )
         return similar_results
 
@@ -228,25 +234,50 @@ class Pipeline:
             logger.warning("No valid local models found.")
         return valid_models, model_names
 
-    def run_llm(self, context, query):
-        """
-        Run the language model with the context and query.
-
-        Args:
-            context (str): The context to run the language model with.
-            query (str): The query to run the language model with.
-
-        Returns:
-            str: The response from the language model.
-        """
+    def run_llm(self, context, query, history_limit=5):
         logger.info(f"Checking if the model exists in the list of supported local models.")
         _, model_names = self.load_local_ollama()
-        if not self.model_name in model_names:
+        if self.model_name not in model_names:
             logger.error(f"Model {self.model_name} not found in the list of supported local models.\n")
             raise ValueError(f"Model {self.model_name} not found in the list of supported local models.")
+        
         self.llm.model = self.model_name
-        response = self.llm.run_query(context, query)
-        return response
+        
+        # Use CustomPromptChain
+        prompt_context = {
+            "context": context,
+            "query": query,
+            # Add any other context variables you need
+        }
+        
+        prompt_template = """
+        User:
+            Context: {{ context }}, 
+            Conversation History: {{ conversation_history }}
+            Query: {{ query }}
+        
+        Please provide a detailed and accurate response based on the given context (which involves conversational history) and query. Make sure you don't add the conversational history in the response, only use it as a context to generate the response.
+        """
+        
+        try:
+            response = self.prompt_chain.run(
+                context=prompt_context,
+                model=self.llm.model,
+                callable=self.llm.run_query,
+                prompt=prompt_template,
+                conversation_history=self.conversation_history
+            )
+            
+            # Update conversation history
+            self.conversation_history.append({"user": query, "response": response})
+            
+            # Limit conversation history to last 5 exchanges
+            self.conversation_history = self.conversation_history[-history_limit:]
+            
+            return response
+        except Exception as e:
+            logger.error(f"Error running LLM: {str(e)}")
+            raise
 
     def extract_pdf_data(self):
         """
@@ -271,6 +302,9 @@ class Pipeline:
         self.index_type = index_type
         logger.info(f"Reindexing the database, db_type: {self.db_type}, index_type: {self.index_type} with new embedding model dims: {self.dimension}")
         self.vector_db = VectorDatabase(self.dimension, self.db_type, self.index_type)
+    
+    def clear_conversation_history(self):
+        self.conversation_history = []
         
 if __name__ == "__main__":
     data = "This is a test sentence about domestic animals, Here I come with another test sentence about the cats."
@@ -332,7 +366,7 @@ if __name__ == "__main__":
 
     # # 4. Search for the top k most similar embeddings
     logger.info("Searching for the top k most similar embeddings...\n\n")
-    similar_results = pipeline.search_embeddings(query_embedding, k=5)
+    similar_results = pipeline.search_embeddings(query_embedding)
     indices = similar_results.get('indices')[0]  # Extract the first list of indices
 
     # # 5. Get the ragText from the data object using the indices from the similar results
