@@ -27,8 +27,9 @@ pipeline = Pipeline(embedding_model_name=embedding_model,
                     chunk_overlap=25,
                     base_path=file_base_url,
                     log_file=log_file,
-                    model_name="llama3")
-db_path = f"./data/doc_index_db_{pipeline.embedding_model_name}"
+                    model_name="openchat",
+                    file_name="")
+pipeline.file_name = f"./data/vdb_{pipeline.embedding_model_name}"
 # Allow CORS for your frontend application
 app.add_middleware(
     CORSMiddleware,
@@ -45,56 +46,104 @@ class Query(BaseModel):
 async def upload_file(file: UploadFile = File(...)):
     try:
         file_location = f"{pipeline.base_path}/{file.filename}"
-        pipeline.base_path = file_location
-        with open(file_location, "wb+") as file_object:
-            file_object.write(file.file.read())
+        
+        if not os.path.exists(file_location):
+            # If the file does not exist, upload and save it
+            with open(file_location, "wb+") as file_object:
+                file_object.write(file.file.read())
             logger.info(f"File '{file.filename}' saved at '{file_location}'\n\n")
-            
-            logger.info("Extracting the text data from the source...")
-            data_object = pipeline.extract_pdf_data()
-            if not data_object:
-                raise HTTPException(status_code=400, detail="No text data found in the file.")
-              
-            # 1. Chunk the text
-            logger.info("Chunking the text data...\n\n")
-            chunks, data_object = pipeline.process_data_chunk()
+        else:
+            logger.info(f"File '{file.filename}' already exists at '{file_location}'. Reading the file...\n\n")
 
-            if not chunks:
-                raise HTTPException(status_code=400, detail="No chunks found in the text data.")
-            # # 2. If the db is already saved, load it, otherwise add the embeddings and save it
-            logger.info("Trying to load the vector store from the local disk...\n\n")
-            if not pipeline.load_vectordb_locall(db_path):
-                # 2.1 Embed the chunks
-                all_embeddings = []
-                for chunk in data_object.chunks:
-                    embeddings, data_object = pipeline.process_data_embed(chunk.text)
-                    # 2.2 Add embeddings to the vector database
-                    pipeline.add_embeddings(embeddings)
-                # 2.3 Persist the vector store to the local disk or load if exist
-                pipeline.save_local(db_path)
-            response_message = f"File '{file.filename}' saved at '{file_location}' and stored in the vector store."
+        pipeline.base_path = file_location
+
+        logger.info("Extracting the text data from the source...")
+        data_object = pipeline.extract_pdf_data()
+        pipeline.data_object = data_object
+        if not data_object:
+            raise HTTPException(status_code=400, detail="No text data found in the file.")
+        
+        # Chunk the text and embed once
+        logger.info("Chunking the text data...\n\n")
+        chunks, data_object = pipeline.process_data_chunk()
+        pipeline.data_object = data_object
+
+        if not chunks:
+            raise HTTPException(status_code=400, detail="No chunks found in the text data.")
+
+        # Embed the chunks and save the vector store
+        logger.info("Trying to load the vector store from the local disk...\n\n")
+        pipeline.file_name = f"{pipeline.file_name}_{file.filename}"
+        if not pipeline.load_vectordb_locall(pipeline.file_name):
+            all_embeddings = []
+            chunks_metadata = []  # To store metadata of chunks
+            for i, chunk in enumerate(chunks):
+                embeddings, data_object = pipeline.process_data_embed(chunk.text)
+                all_embeddings.append(embeddings)
+                pipeline.add_embeddings(embeddings)
+                # Save chunk metadata (index and text)
+                chunks_metadata.append({"index": i, "text": chunk.text})
+            pipeline.data_object = data_object
+            pipeline.save_local(pipeline.file_name)
+
+            # Save chunks metadata locally with filename as suffix
+            chunks_file = os.path.join(file_base_url, f"chunks_{file.filename}.json")
+            with open(chunks_file, 'w') as f:
+                print(f"1 chunk: {chunks_metadata[0]}")
+                json.dump(chunks_metadata, f)
+
+        response_message = f"File '{file.filename}' processed successfully and stored in the vector store."
         return {"info": response_message}, 201
+
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=f"Error uploading file: {e}")
 
+
 @app.post("/chat/")
 async def chat(query: Query):
     try:
-        response = "This is a placeholder response"
-        # embed the query
-        query_text = pipeline.add_embeddings(query.query)
+        if len(pipeline.data_object.chunks) < 1:
+            # Load chunks from disk if not in memory
+            logger.info("Loading chunks from disk...\n\n")
+            file_name = pipeline.file_name.split("_")[-1]  # Extract the original file name
+            chunks_file = os.path.join(file_base_url, f"chunks_{file_name}.json")
+            
+            if not os.path.exists(chunks_file):
+                raise HTTPException(status_code=404, detail="Chunks file not found.")
+            
+            with open(chunks_file, 'r') as f:
+                chunks_data = json.load(f)
+                pipeline.data_object.chunks = [data_object.Chunk(**chunk) for chunk in chunks_data]
+          
+        logger.info("Embedding the query...\n\n")
+        query.query = f"Query: {query.query}, <source>: <{pipeline.data_object.docsSource}>, and <domain>: <{pipeline.data_object.domain}>"
+        pipeline.data_object.queries = query.query
+        query_embedding = pipeline.process_data_embed(pipeline.data_object.queries)
+
+        logger.info("Searching for the top k most similar embeddings...\n\n")
+        similar_results = pipeline.search_embeddings(query_embedding, k=3)
+        indices = similar_results.get('indices')[0]
+
+        logger.info("Retrieving the ragText...\n\n")
+        ragText = pipeline.retrieveRagText(indices)
+
+        logger.info("Getting the response from the language model...\n\n")
+        response = pipeline.run_llm(ragText, pipeline.data_object.queries)
         
-        # search the index
-        
-        return {"response": response}, 200
+        # Format the response to ensure readability
+        formatted_response = response.replace('\n', '\n\n')
+
+        return {"response": formatted_response}, 200
+
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
         logger.error(f"Error processing chat query: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing chat query: {e}")
+
 
 @app.get("/local/models/")
 async def get_supported_models():
@@ -175,9 +224,9 @@ async def set_config(config: dict):
             pipeline.log_file = config["log_file"]
         if "model_name" in config:
             pipeline.model_name = config["model_name"]
-        
-        pipeline.log_file = config["log_file"]
-        pipeline.data_object = data_object
+
+        pipeline.data_object = data_object  # Ensure data_object is updated
+        pipeline.reindex_db(pipeline.db_type, pipeline.index_type)
             
         config = {
             "embedding_model_name": pipeline.embedding_model_name,

@@ -18,22 +18,36 @@ class LLMRunner:
         api_key: Optional[str] = None,
         local_endpoint: Optional[str] = None,
         model: Optional[str] = None,
-        supported_local_models: List[str] = None,
         data_object: DataObject = None,
         log_file: str = "data_processing_log.txt",
     ):
         self.api_key = api_key
         self.local_endpoint = local_endpoint
         self.model = model
-        self.supported_local_models = supported_local_models
         self.ollama_client = ollama.Client() if self.model else None
         self.openai_client = (
             OpenAI(api_key=os.getenv("OPENAI_API_KEY")) if api_key and model else None
         )
-        self.system_prompt = """You are an advanced language model assistant. Use the context provided to answer the query accurately.
-                Make sure you understand the context before generating the response. Explain how you come to your findings.
-                Make your response concise and informative. Provide references to the context where the facts are gathered.
-            """
+        self.system_prompt = """You are an advanced language model assistant designed for a RAG (Retrieval-Augmented Generation) agentic workflow. Your primary goal is to provide accurate, relevant, and insightful responses based on the given context and query.
+
+        Instructions:
+        1. Carefully analyze the provided context and query before formulating your response.
+        2. Ensure a deep understanding of the context, including any nuances or implications.
+        3. Generate a response that is concise, informative, and directly addresses the query.
+        4. Start your response immediately with the relevant information, without any introductory phrases about what you're going to do.
+        5. Clearly explain your reasoning process, including how you arrived at your conclusions.
+        6. Cite specific references from the context to support your statements, using inline citations (e.g., [1], [2]) where appropriate.
+        7. If the context is ambiguous or insufficient, state this clearly and propose potential interpretations or additional information that would be helpful.
+        8. Tailor your language and complexity to the apparent expertise level of the user.
+        9. If relevant, suggest related queries or areas for further exploration based on the current topic.
+        10. Be prepared to handle follow-up questions or requests for clarification.
+        11. Maintain awareness of potential biases in the provided context and address them when necessary.
+        12. Format your response in a conversational and engaging manner to enhance readability and user engagement.
+        13. Make sure you format anywhere you see a link in the text as a clickable link if there's a link.
+
+        Remember: You are part of a customizable workflow. Your responses should be adaptable to various embedding techniques, chunking algorithms, context sizes, and data sources (local or web-based).
+        """
+        
         self.data_object = data_object
         self.log_file = log_file
         logging.basicConfig(level=logging.INFO)
@@ -115,28 +129,20 @@ class LLMRunner:
             log_dataobject_step(
                 self.data_object, "Input Text to LLM Agent", self.log_file
             )
-            self.logger.info(
-                f"Checking if model {self.model} is in the list of supported local models."
-            )
-            if self.model in self.supported_local_models:
-                try:
-                    self.logger.info(f"Generating response using Ollama model: {self.model}")
-                    response = self.ollama_client.generate(
-                        model=self.model,
-                        prompt=f"{self.system_prompt}\n\nContext: {context}\n\nQuery: {query}",
-                    )
-                    self.data_object.generatedResponse = response["response"]
-                    log_dataobject_step(
-                        self.data_object, "After LLM Response Generated", self.log_file
-                    )
-                    return response["response"]
-                except ollama.OllamaError as e:
-                    self.logger.error(f"Error with Ollama request: {e}")
-                    return f"Error with Ollama request: {e}"
-            else:
-                return (
-                    f"Model {self.model} is not in the list of supported local models."
+            try:
+                self.logger.info(f"Generating response using Ollama model: {self.model}")
+                response = self.ollama_client.generate(
+                    model=self.model,
+                    prompt=f"{self.system_prompt}\n\nContext: {context}\n\nQuery: {query}",
                 )
+                self.data_object.generatedResponse = response["response"]
+                log_dataobject_step(
+                    self.data_object, "After LLM Response Generated", self.log_file
+                )
+                return response["response"]
+            except ollama.OllamaError as e:
+                self.logger.error(f"Error with Ollama request: {e}")
+                return f"Error with Ollama request: {e}"
         elif self.api_key and self.model:
             self.logger.info(f"Generating response using OpenAI model: {self.model}")
             response = self.client.completions.create(

@@ -30,6 +30,7 @@ class Pipeline:
         base_path: str = "./data",
         local_endpoint=None,
         api_key=None,
+        file_name=""
     ):
         """
             Usage of the Pipeline class.
@@ -88,8 +89,7 @@ class Pipeline:
         self.llm = LLMRunner(
             api_key=self.openai_key,
             local_endpoint=self.local_endpoint,
-            model=model_name,
-            supported_local_models=self.supported_local_models,
+            model=self.model_name,
             data_object=self.data_object,
             log_file=self.log_file,
         )
@@ -117,7 +117,7 @@ class Pipeline:
     def process_data_embed(self, text):
         # embed the chunks
         embeddings, data_object = self.embedder.embed_text(
-            self.data_object, text, self.log_file
+            self.data_object, text, model_name=self.embedding_model_name, log_file=self.log_file
         )
         self.data_object = data_object
         return embeddings, data_object
@@ -185,17 +185,24 @@ class Pipeline:
             indices (list): The list of indices to retrieve the ragText from.
 
         Returns:
-            list: A list of ragText retrieved from the data object.
+            str: The concatenated ragText retrieved from the data object.
         """
         log_dataobject_step(
             self.data_object, "Input Text to RagText Retrieval", self.log_file
         )
         logger.info("Retrieving RagText.")
-        ragText = " ".join([data_object.chunks[idx].text for idx in indices])
-        self.data_object.ragText = ragText
-        log_dataobject_step(self.data_object, "After RagText Retrieved", self.log_file)
-        logger.info(f"RagText Retrieved successfully!")
-        return ragText
+        try:
+            ragText = " ".join([self.data_object.chunks[idx].text for idx in indices])
+            self.data_object.ragText = ragText
+            log_dataobject_step(self.data_object, "After RagText Retrieved", self.log_file)
+            logger.info(f"RagText Retrieved successfully!")
+            return ragText
+        except IndexError as e:
+            logger.error(f"IndexError while retrieving RagText: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error while retrieving RagText: {e}")
+            raise
 
     def load_local_ollama(self):
         """
@@ -206,21 +213,19 @@ class Pipeline:
             model[0].split(":")[0] for model in local_models
         ]  # Adjusted splitting to match your format
         # Check if the local models are among the supported local models
-        valid_models = None
+        valid_models = []
         for name in model_names:
             if name in self.supported_local_models:
-                valid_models = name
+                valid_models.append(name)
             if self.model_name in self.supported_local_models and self.model_name not in model_names:
                 # download the ollama model locally
                 logger.info(f"Model {self.model_name} not found locally. Downloading it from ollama model registry....\n")
                 response = self.llm.download_model(self.model_name)
-                print(response)
                 model_names.append(self.model_name)
         if valid_models:
             logger.info(f"Valid local models loaded successfully: {valid_models}")
         else:
             logger.warning("No valid local models found.")
-
         return valid_models, model_names
 
     def run_llm(self, context, query):
@@ -235,12 +240,11 @@ class Pipeline:
             str: The response from the language model.
         """
         logger.info(f"Checking if the model exists in the list of supported local models.")
-        models = self.load_local_ollama()
-        if models:
-            self.model_name = models[0]
-            response = self.llm.run_query(context, query)
-        else:
-            logger.warning(f"Model {self.model_name} not found in the list of supported local models.\n")
+        _, model_names = self.load_local_ollama()
+        if not self.model_name in model_names:
+            logger.error(f"Model {self.model_name} not found in the list of supported local models.\n")
+            raise ValueError(f"Model {self.model_name} not found in the list of supported local models.")
+        self.llm.model = self.model_name
         response = self.llm.run_query(context, query)
         return response
 
@@ -254,7 +258,20 @@ class Pipeline:
         data_object = self.data_collector.process_pdf(self.base_path, self.data_object)
         return data_object
 
-
+    def reindex_db(self, db_type, index_type):
+        """
+        Summary:
+            Reindex the database with new embedding model dimensions.
+        Args:
+            db_type (str): The database type.
+            index_type (str): The index type.
+        """
+        self.dimension = self.embedding_dimensions.get(self.embedding_model_name)
+        self.db_type = db_type
+        self.index_type = index_type
+        logger.info(f"Reindexing the database, db_type: {self.db_type}, index_type: {self.index_type} with new embedding model dims: {self.dimension}")
+        self.vector_db = VectorDatabase(self.dimension, self.db_type, self.index_type)
+        
 if __name__ == "__main__":
     data = "This is a test sentence about domestic animals, Here I come with another test sentence about the cats."
     data_object = DataObject(

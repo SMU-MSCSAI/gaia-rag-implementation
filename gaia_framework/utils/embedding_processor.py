@@ -8,16 +8,6 @@ from gaia_framework.utils.data_object import DataObject
 from gaia_framework.utils.logger_util import log_dataobject_step
 
 class EmbeddingProcessor:
-    SUPPORTED_MODELS = {
-        "huggingface": [
-            "sentence-transformers/all-MiniLM-L6-v2",
-            "bert-base-uncased",
-            "roberta-base",
-            # Add more Hugging Face models as needed
-        ],
-        "openai": ["text-embedding-ada-002", "text-embedding-babbage-001"],
-    }
-
     def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2"):
         """
         Initialize the EmbeddingProcessor with the specified model.
@@ -25,13 +15,25 @@ class EmbeddingProcessor:
         Args:
             model_name (str): The name of the model to use for embeddings.
         """
+        print(f"passed model name: {model_name}")
         self.model_name = model_name
         self.logger = logging.getLogger(__name__)
+        
+        self.SUPPORTED_MODELS = {
+            "huggingface": [
+                "sentence-transformers/all-MiniLM-L6-v2",
+                "bert-base-uncased",
+                "roberta-base",
+                # Add more Hugging Face models as needed
+            ],
+            "openai": ["text-embedding-ada-002", "text-embedding-babbage-001"],
+        }
 
         # Load environment variables from .env file if it exists
-        load_dotenv()
 
+    def init(self, model_name):
         try:
+            load_dotenv()
             # Initialize Hugging Face model
             if model_name in self.SUPPORTED_MODELS["huggingface"]:
                 self.logger.info(f"Initializing Hugging Face model: {model_name}")
@@ -58,7 +60,7 @@ class EmbeddingProcessor:
             self.logger.error(f"Error initializing model: {e}")
             raise
 
-    def embed_text(self, data_object, text: str, log_file: str = "embedding_log.txt"):
+    def embed_text(self, data_object, text: str, model_name: str, log_file: str = "embedding_log.txt"):
         """
         Generate embeddings for the given text using the specified model.
 
@@ -69,11 +71,12 @@ class EmbeddingProcessor:
         Returns:
             numpy.ndarray or list and dict: The generated embeddings and data object.
         """
-        self.logger.info(f"Embedding text using model: {self.model_name}")
+        self.logger.info(f"Embedding text using model: {model_name}")
+        self.init(model_name)
         try:
             log_dataobject_step(data_object, "Input Logs to Embeddings Agent:", log_file)
             
-            if self.model_name in self.SUPPORTED_MODELS["huggingface"]:
+            if model_name in self.SUPPORTED_MODELS["huggingface"]:
                 # Tokenize and generate embeddings using Hugging Face model
                 inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True)
                 with torch.no_grad():
@@ -83,10 +86,10 @@ class EmbeddingProcessor:
                 log_dataobject_step(data_object, "After Hugging Face Embeddings Agent", log_file)
                 return embeddings, data_object
 
-            elif self.model_name in self.SUPPORTED_MODELS["openai"]:
+            elif model_name in self.SUPPORTED_MODELS["openai"]:
                 # Generate embeddings using OpenAI model with the new API
                 response = self.client.embeddings.create(
-                    model=self.model_name, input=text
+                    model=model_name, input=text
                 )
                 input = [text]  # Note the change here to wrap text in a list)
                 embeddings = response.data[0].embedding
