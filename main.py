@@ -1,3 +1,4 @@
+import glob
 import json
 import logging
 from typing import Optional
@@ -17,7 +18,7 @@ log_file = "./data/data_processing_log.txt"
 
 file_base_url = "./files/"
 global embedding_model
-embedding_model = "text-embedding-ada-002"
+embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
 
 data_object = data_object.DataObject(id="1", domain="example.com", docsSource="source", textData="")
 
@@ -47,7 +48,7 @@ class Query(BaseModel):
     history_limit: Optional[int] = 5
     
 class Config(BaseModel):
-    embedding_model_name: Optional[str] = "text-embedding-ada-002"
+    embedding_model_name: Optional[str] = "sentence-transformers/all-MiniLM-L6-v2"
     db_type: Optional[str] = "faiss"
     index_type: Optional[str] = "FlatL2"
     chunk_size: Optional[int] = 150
@@ -136,13 +137,16 @@ async def chat(request: Request):
         if len(pipeline.data_object.chunks) < 1:
             # Load chunks from disk if not in memory
             logger.info("Loading chunks from disk...\n\n")
-            file_name = pipeline.file_name.split("_")[-1]  # Extract the original file name
-            chunks_file = os.path.join(file_base_url, f"chunks_{file_name}.json")
-            
-            print(f"chunk file: {chunks_file}")
-            if not os.path.exists(chunks_file):
+
+            # Find any chunk files
+            chunk_files = glob.glob("files/chunks_*.json")
+            if not chunk_files:
                 raise HTTPException(status_code=404, detail="Chunks file not found.")
-            
+
+            # Use the first chunk file found (you might want to adjust this if you have multiple chunk files to handle)
+            chunks_file = chunk_files[0]
+            logger.info(f"Using chunk file: {chunks_file}")
+
             with open(chunks_file, 'r') as f:
                 chunks_data = json.load(f)
                 pipeline.data_object.chunks = [value.get("text") for value in chunks_data]
@@ -175,10 +179,13 @@ async def chat(request: Request):
 
         conversational_history_len = len(pipeline.conversation_history)
         
-        return {
+        return_resonse = {
             "response": formatted_response,
             "conversation_history_length": conversational_history_len
         }, 200
+        
+        # print(return_resonse)
+        return return_resonse
         
     except HTTPException as http_exc:
         raise http_exc

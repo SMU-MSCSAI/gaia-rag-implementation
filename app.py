@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import requests
 import glob
+import json
 
 BACKEND_URL = "http://localhost:8000"  # Adjust as needed
 
@@ -140,13 +141,14 @@ def main():
         user_query = st.text_input("Enter your query:")
         if st.button("Submit Query"):
             if user_query:
-                response = requests.post(f"{BACKEND_URL}/chat/", json={"query": user_query})
-                if response.status_code == 200:
-                    result = response.json()
-                    st.write("RAG Result:")
-                    st.write(result['response'])
-                else:
-                    st.error(f"Failed to query RAG: {response.text}")
+                with st.spinner('Thinking...'):
+                    response = requests.post(f"{BACKEND_URL}/chat/", json={"query": user_query})
+                    if response.status_code == 200:
+                        result = response.json()
+                        st.write("RAG Result:")
+                        st.write(result[0]['response'])
+                    else:
+                        st.error(f"Failed to query RAG: {response.text}")
             else:
                 st.warning("Please enter a query.")
     else:
