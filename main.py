@@ -123,7 +123,6 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=f"Error uploading file: {e}")
 
-
 @app.post("/chat/")
 async def chat(request: Request):
     try:
@@ -186,8 +185,6 @@ async def chat(request: Request):
     except Exception as e:
         logger.error(f"Error processing chat query: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing chat query: {e}")
-
-
 
 @app.get("/local/models/")
 async def get_supported_models():
