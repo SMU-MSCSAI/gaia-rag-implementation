@@ -54,23 +54,78 @@ def chunks_exist():
     chunk_files = glob.glob("files/chunks_*.json")
     return len(chunk_files) > 0
 
+def scrape_url(url):
+    response = requests.post(f"{BACKEND_URL}/scrape/", json={"url": url})
+    if response.status_code == 200:
+        json_response = response.json()
+        if isinstance(json_response, list) and len(json_response) > 0:
+            # If the response is a list, take the first item
+            first_item = json_response[0]
+            if isinstance(first_item, dict):
+                return first_item.get("scraped_text")
+        elif isinstance(json_response, dict):
+            # If the response is a dictionary, directly access 'scraped_text'
+            return json_response.get("scraped_text")
+        
+        # If we couldn't find 'scraped_text', log the response and return None
+        st.error(f"Unexpected response format: {json_response}")
+        return None
+    else:
+        st.error(f"Failed to scrape URL: {response.text}")
+        return None
+
 def main():
     st.title("Mini Custom RAG Pipeline")
 
     if 'rag_ready' not in st.session_state:
         st.session_state.rag_ready = False
+        st.session_state.data_processed = False
         initialize_defaults()
 
     with st.expander("Initialize RAG" if not st.session_state.rag_ready else "Reinitialize RAG", expanded=True):
         id_input = st.text_input("Enter ID/Name:", value=st.session_state.config.get("id", "example_id"))
         domain_input = st.text_input("Enter Domain URL:", value=st.session_state.config.get("domain", "example.com"))
 
-        if "http" in domain_input:
-            docs_source = "web"
-            st.selectbox("Select Document Source:", ["web"], disabled=True, index=0, format_func=lambda x: f"{x} (auto-selected based on URL)")
-        else:
-            docs_source = st.selectbox("Select Document Source:", ["pdf"], index=0, format_func=lambda x: f"{x} (default)" if x == "pdf" else f"{x} (not currently supported)", disabled=True)
-            
+        file_uploaded = chunks_exist()
+        if st.session_state.rag_ready:
+            if "http" in domain_input:
+                docs_source = "web"
+                st.selectbox("Select Document Source:", ["web"], disabled=True, index=0, 
+                            format_func=lambda x: f"{x} (auto-selected based on URL)",
+                            key="docs_source_web_2")  
+
+                if st.button("Scrape URL", key="scrape_button_main"):
+                    with st.spinner('Scraping URL...'):
+                        scraped_text = scrape_url(domain_input)
+                        if scraped_text:
+                            st.success("URL scraped successfully")
+                            st.session_state.data_processed = True
+                            st.session_state.file_uploaded = True
+                            st.text_area("Scraped Content Preview:", value=scraped_text[:500] + "...", height=200)
+                        else:
+                            st.error("Failed to scrape URL")
+            else:
+                docs_source = "pdf"
+                st.selectbox("Select Document Source:", ["pdf"], disabled=True, index=0, 
+                            format_func=lambda x: f"{x} (default)",
+                            key="docs_source_pdf_2")
+
+                uploaded_file = st.file_uploader("Choose a file", type="pdf", key="pdf_uploader")
+                if uploaded_file is not None:
+                    file_exists = chunks_exist()
+                    if file_exists:
+                        file_uploaded = True
+                        st.warning("This file already exists. Re-uploading will delete the existing file and re-process it.")
+                    if st.button("Upload File", key="upload_button"):
+                        with st.spinner('Uploading and processing file...'):
+                            files = {"file": uploaded_file}
+                            response = requests.post(f"{BACKEND_URL}/upload/", files=files)
+                            if response.status_code == 200:
+                                st.success("File uploaded and processed successfully")
+                                file_uploaded = True
+                            else:
+                                st.error(f"Failed to upload file: {response.text}")
+                
         queries_input = st.text_area("Enter Initial Queries (one per line):", value="\n".join(st.session_state.config.get("queries", [])))
 
         st.subheader("Configure Pipeline")
@@ -115,8 +170,19 @@ def main():
     file_uploaded = chunks_exist()
     if st.session_state.rag_ready:
         if "http" in domain_input:
-            st.warning("Since the domain contains 'http', the system will scrape the web for data.")
-            file_uploaded = True
+            docs_source = "web"
+            st.selectbox("Select Document Source:", ["web"], disabled=True, index=0, format_func=lambda x: f"{x} (auto-selected based on URL)")
+            
+            if st.button("Scrape URL"):
+                with st.spinner('Scraping URL...'):
+                    scraped_text = scrape_url(domain_input)
+                    if scraped_text:
+                        st.success("URL scraped successfully")
+                        st.session_state.data_processed = True
+                        st.session_state.file_uploaded = True
+                        st.text_area("Scraped Content Preview:", value=scraped_text[:500] + "...", height=200)
+                    else:
+                        st.error("Failed to scrape URL")
         else:
             uploaded_file = st.file_uploader("Choose a file", type="pdf")
             if uploaded_file is not None:
@@ -137,7 +203,7 @@ def main():
     # Query RAG section
     st.header("3. Query RAG")
 
-    if file_uploaded:
+    if st.session_state.get('file_uploaded', False):
         user_query = st.text_input("Enter your query:")
         if st.button("Submit Query"):
             if user_query:

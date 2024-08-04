@@ -1,0 +1,12 @@
+{
+  "total_urls_scraped": 1,
+  "data_collected_per_domain": {
+    "scrapethissite.com": 195
+  },
+  "performance_metrics": {
+    "www.scrapethissite.com": {
+      "success": 1,
+      "failure": 0
+    }
+  }
+}

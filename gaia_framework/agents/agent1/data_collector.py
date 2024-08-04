@@ -208,3 +208,19 @@ class DataCollector:
         except Exception as e:
             self.logger.error(f"Error processing input: {str(e)}")
             raise
+
+    def scrape_url(self, url: str) -> str:
+        try:
+            project_data = ProjectData(
+                id=str(uuid.uuid4()),
+                domain=url,
+                docsSource="web",
+                queries=[]
+            )
+            json_input = project_data.to_json()
+            result = self.process(json_input)
+            result_data = ProjectData.from_json(result)
+            return result_data.textData
+        except Exception as e:
+            self.logger.error(f"Error scraping URL {url}: {str(e)}")
+            raise

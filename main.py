@@ -58,6 +58,69 @@ class Config(BaseModel):
     model_name: Optional[str] = "llama3"
     top_k: Optional[int] = 5
 
+class ScrapeRequest(BaseModel):
+    url: str
+
+@app.post("/scrape/")
+async def scrape_url(request: ScrapeRequest):
+    try:
+        # Scrape the URL
+        scraped_text = pipeline.scrape_url(request.url)
+        if not scraped_text:
+            raise HTTPException(status_code=400, detail="No text data found from the URL.")
+
+        # Generate a unique filename for the scraped content
+        filename = f"scraped_{uuid.uuid4().hex}.txt"
+        file_location = os.path.join(pipeline.base_path, filename)
+        chunks_file = os.path.join(file_base_url, f"chunks_{filename}.json")
+
+        # Save the scraped text to a file
+        with open(file_location, "w", encoding="utf-8") as file_object:
+            file_object.write(scraped_text)
+        logger.info(f"Scraped content saved at '{file_location}'\n\n")
+
+        # Set the base path to the file location
+        pipeline.base_path = file_location
+        pipeline.file_name = filename
+
+        # Initialize data object
+        pipeline.data_object.id = str(uuid.uuid4())
+        pipeline.data_object.domain = request.url
+        pipeline.data_object.docsSource = "web"
+        pipeline.data_object.textData = scraped_text
+
+        # Chunk the text
+        logger.info("Chunking the text data...\n\n")
+        chunks, data_object = pipeline.process_data_chunk()
+        if not chunks:
+            raise HTTPException(status_code=400, detail="No chunks found in the scraped text.")
+
+        # Embed the chunks and save the vector store
+        logger.info("Processing and storing embeddings...\n\n")
+        if not pipeline.load_vectordb_locall(pipeline.file_name):
+            all_embeddings = []
+            chunks_metadata = []  # To store metadata of chunks
+            for i, chunk in enumerate(chunks):
+                embeddings, data_object = pipeline.process_data_embed(chunk.text)
+                all_embeddings.append(embeddings)
+                pipeline.add_embeddings(embeddings)
+                # Save chunk metadata (index and text)
+                chunks_metadata.append({"index": i, "text": chunk.text})
+            pipeline.data_object = data_object
+            pipeline.save_local(f"./data/{pipeline.file_name}")
+
+            # Save chunks metadata locally with filename as suffix
+            with open(chunks_file, 'w') as f:
+                json.dump(chunks_metadata, f)
+
+        response_message = f"URL '{request.url}' scraped, processed successfully and stored in the vector store."
+        return {"info": response_message, "scraped_text": scraped_text[:500] + "..."}, 200
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Error scraping URL: {e}")
+        raise HTTPException(status_code=500, detail=f"Error scraping URL: {e}")
+
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     try:

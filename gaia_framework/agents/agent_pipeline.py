@@ -295,6 +295,9 @@ class Pipeline:
             logger.error(f"Error running LLM: {str(e)}")
             raise
 
+    def scrape_url(self, url: str) -> str:
+        return self.data_collector.scrape_url(url)
+
     def extract_pdf_data(self):
         """
         Extract the text data from a PDF file.
