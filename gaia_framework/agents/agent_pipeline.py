@@ -58,6 +58,7 @@ class Pipeline:
             "roberta-base": 768,
             "text-embedding-ada-002": 1536,
             "text-embedding-babbage-001": 2048,
+            "text-embedding-3-small": 1536,
             # Add more models and their dimensions as needed
         }
 

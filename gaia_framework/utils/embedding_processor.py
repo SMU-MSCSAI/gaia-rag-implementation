@@ -27,7 +27,7 @@ class EmbeddingProcessor:
                 "roberta-base",
                 # Add more Hugging Face models as needed
             ],
-            "openai": ["text-embedding-ada-002", "text-embedding-babbage-001"],
+            "openai": ["text-embedding-ada-002", "text-embedding-babbage-001", "text-embedding-3-small"],
         }
 
         # Load environment variables from .env file if it exists
